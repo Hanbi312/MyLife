@@ -1,7 +1,8 @@
-const { getStore } = require('@netlify/blobs');
+const { getStore, connectLambda } = require('@netlify/blobs');
 
 exports.handler = async (event, context) => {
-  // Netlify Identity로 로그인한 사용자 정보는 context.clientContext.user에 자동으로 들어옵니다.
+  connectLambda(event);
+
   const user = context.clientContext && context.clientContext.user;
 
   if (!user) {
@@ -9,7 +10,7 @@ exports.handler = async (event, context) => {
   }
 
   const store = getStore('life-hub-data');
-  const key = user.sub; // 사용자별 고유 ID를 키로 사용 (다른 사람 데이터와 절대 섞이지 않음)
+  const key = user.sub;
 
   try {
     if (event.httpMethod === 'GET') {
@@ -18,7 +19,6 @@ exports.handler = async (event, context) => {
     }
 
     if (event.httpMethod === 'POST') {
-      // event.body 자체가 이미 JSON 문자열이므로 그대로 저장
       await store.set(key, event.body);
       return { statusCode: 200, body: JSON.stringify({ ok: true }) };
     }
