@@ -193,7 +193,7 @@
       </nav>
     </div>
     <div>
-      <div class="user-chip"><span class="em" id="userEmail"></span><button class="icon" style="color:#fff" onclick="netlifyIdentity.logout()" title="로그아웃">⏻</button></div>
+      <div class="user-chip"><span class="em" id="userEmail"></span><button class="icon" style="color:#fff" onclick="doLogout()" title="로그아웃">⏻</button></div>
       <div class="side-foot">
         <button class="top-btn" onclick="exportData()">⬇ 백업</button>
         <button class="top-btn" onclick="document.getElementById('impFile').click()">⬆ 복원</button>
@@ -242,23 +242,25 @@ async function load(){
   migrate();render();
 }
 let saveTimer=null;
+async function doSaveNow(){
+  try{
+    const user=netlifyIdentity.currentUser();
+    if(user){
+      const token=await user.jwt();
+      const res=await fetch('/.netlify/functions/data',{
+        method:'POST',
+        headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
+        body:JSON.stringify(D),
+        keepalive:true // 페이지가 닫히거나 이동 중이어도 요청이 끝까지 전송되도록 보장
+      });
+      if(res.ok)toast();
+    }
+    if(useLocal)localStorage.setItem(KEY,JSON.stringify(D)); // 로컬에도 백업
+  }catch(e){console.error('저장 실패',e);}
+}
 function save(){
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(async()=>{
-    try{
-      const user=netlifyIdentity.currentUser();
-      if(user){
-        const token=await user.jwt();
-        const res=await fetch('/.netlify/functions/data',{
-          method:'POST',
-          headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-          body:JSON.stringify(D)
-        });
-        if(res.ok)toast();
-      }
-      if(useLocal)localStorage.setItem(KEY,JSON.stringify(D)); // 로컬에도 백업
-    }catch(e){console.error('저장 실패',e);}
-  },350);
+  saveTimer=setTimeout(doSaveNow,350);
 }
 function toast(){const n=document.getElementById('saveNote');n.classList.add('show');setTimeout(()=>n.classList.remove('show'),1100);}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -947,6 +949,20 @@ netlifyIdentity.on('init', user=>{ user?showApp(user):showGate(); });
 netlifyIdentity.on('login', user=>{ netlifyIdentity.close(); showApp(user); });
 netlifyIdentity.on('logout', ()=>{ D={events:[],todos:{daily:[],monthly:[],yearly:[]},growth:[],bucket:[],diary:[],ledger:[],fixed:[],loans:[],savings:[]}; showGate(); });
 netlifyIdentity.init();
+
+/* 로그아웃 전에 대기 중인 저장을 반드시 먼저 끝냅니다 */
+async function doLogout(){
+  clearTimeout(saveTimer);
+  await doSaveNow();
+  netlifyIdentity.logout();
+}
+/* 탭을 닫거나 다른 페이지로 이동할 때도 마지막 변경사항을 전송합니다 */
+window.addEventListener('beforeunload',()=>{
+  if(saveTimer){clearTimeout(saveTimer);doSaveNow();}
+});
+window.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'&&saveTimer){clearTimeout(saveTimer);doSaveNow();}
+});
 </script>
 </body>
 </html>
