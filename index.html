@@ -273,7 +273,7 @@ const CAT={task:'해야 하는 일',growth:'자기계발'};
 /* ================= 상태 ================= */
 let view='home', todoTab='daily', todoCat='all', calY, calM, calSel=todayS(), dayTab='ev',
     diaryMood='🙂', diaryEditId=null, calDiaryEditId=null, calDiaryMood='🙂', modalOpen=false,
-    monY, monM, monType='out', editTarget=null;
+    monY, monM, monType='out', editTarget=null, moneyBank='all';
 const now=new Date(); calY=now.getFullYear(); calM=now.getMonth(); monY=calY; monM=calM;
 document.getElementById('todayLine').textContent=
   now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'long'})+' · 오늘도 한 걸음씩';
@@ -876,9 +876,15 @@ function moneyHTML(){
   const byCat={};
   list.filter(l=>l.type==='out').forEach(l=>{byCat[l.cat]=(byCat[l.cat]||0)+l.amount;});
   const catRows=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  // 은행별 지출 집계
+  const byBank={};
+  list.filter(l=>l.type==='out').forEach(l=>{const b=l.bank&&l.bank.trim()?l.bank.trim():'은행 미지정'; byBank[b]=(byBank[b]||0)+l.amount;});
+  const bankRows=Object.entries(byBank).sort((a,b)=>b[1]-a[1]);
+  // 은행 필터가 걸려 있으면 내역 목록만 필터링
+  const filteredList=moneyBank==='all'?list:list.filter(l=>(l.bank&&l.bank.trim()?l.bank.trim():'은행 미지정')===moneyBank);
   // 날짜별 그룹
   const byDate={};
-  list.forEach(l=>{(byDate[l.date]=byDate[l.date]||[]).push(l);});
+  filteredList.forEach(l=>{(byDate[l.date]=byDate[l.date]||[]).push(l);});
   const dates=Object.keys(byDate).sort((a,b)=>b.localeCompare(a));
   const catOpts=(monType==='out'?OUT_CATS:IN_CATS).map(c=>`<option>${c}</option>`).join('');
   const fixSum=D.fixed.reduce((s,f)=>s+f.amount,0);
@@ -914,7 +920,11 @@ function moneyHTML(){
 
   <div class="grid two mt">
     <div class="card">
-      <h2>이번 달 내역 <span class="sub">${list.length}건</span></h2>
+      <h2>이번 달 내역 <span class="sub">${filteredList.length}건</span></h2>
+      ${bankRows.length>1?`<div class="chips">
+        <button class="all ${moneyBank==='all'?'on':''}" onclick="setMoneyBank('all')">전체</button>
+        ${bankRows.map(([b])=>`<button class="task ${moneyBank===b?'on':''}" onclick="setMoneyBank('${esc(b)}')">${esc(b)}</button>`).join('')}
+      </div>`:''}
       ${dates.length?dates.map(d=>`
         <div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-top:12px;border-bottom:1.5px solid #111;padding-bottom:4px">${Number(d.slice(5,7))}월 ${Number(d.slice(8))}일</div>
         <ul class="plain">
@@ -932,6 +942,12 @@ function moneyHTML(){
           <div class="row" style="justify-content:space-between"><span style="font-size:13.5px">${esc(c)}</span><b style="font-size:13px">${won(v)}</b></div>
           <div class="bar"><div style="width:${outSum?Math.round(v/outSum*100):0}%"></div></div>
         </div>`).join(''):'<div class="empty">지출 내역이 쌓이면 분석이 표시됩니다.</div>'}
+      <h2 class="mt">은행별 지출</h2>
+      ${bankRows.length?bankRows.map(([b,v])=>`
+        <div class="mt">
+          <div class="row" style="justify-content:space-between"><span style="font-size:13.5px">🏦 ${esc(b)}</span><b style="font-size:13px">${won(v)}</b></div>
+          <div class="bar"><div style="width:${outSum?Math.round(v/outSum*100):0}%"></div></div>
+        </div>`).join(''):'<div class="empty">은행명을 적어 내역을 추가하면 분석이 표시됩니다.</div>'}
     </div>
   </div>
 
@@ -1017,7 +1033,8 @@ function moneyHTML(){
     </div>
   </div>`;
 }
-window.moveMon=d=>{monM+=d;if(monM<0){monM=11;monY--}if(monM>11){monM=0;monY++}render();};
+window.moveMon=d=>{monM+=d;if(monM<0){monM=11;monY--}if(monM>11){monM=0;monY++}moneyBank='all';render();};
+window.setMoneyBank=b=>{moneyBank=b;render();};
 window.addLg=()=>{
   const amt=+document.getElementById('lgAmt').value;
   if(!amt||amt<=0)return;
