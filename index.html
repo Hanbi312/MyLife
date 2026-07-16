@@ -392,11 +392,12 @@ function editModalHTML(){
   }else if(t.type==='fixed'){
     const x=D.fixed.find(f=>f.id===t.id); if(!x){editTarget=null;return '';}
     title='고정지출 수정';
+    const dayVal=x.day?`${todayS().slice(0,7)}-${String(Math.min(x.day,28)).padStart(2,'0')}`:'';
     body=`
       <input id="edFxName" value="${esc(x.name)}" placeholder="항목" class="mt">
       <div class="row wrapm mt">
         <input id="edFxAmt" type="number" min="0" value="${x.amount}" placeholder="금액" style="flex:1">
-        <input id="edFxDay" type="number" min="1" max="31" value="${x.day||''}" placeholder="결제일" style="flex:1">
+        <input id="edFxDay" type="date" value="${dayVal}" title="결제일 — '일'만 저장됩니다" style="flex:1;min-width:150px">
         <input id="edFxBank" value="${esc(x.bank||'')}" placeholder="은행명" style="flex:1">
       </div>`;
   }else if(t.type==='loan'){
@@ -487,8 +488,8 @@ window.saveEdit=()=>{
     const nm=document.getElementById('edFxName').value.trim(); if(!nm)return;
     const amt=+document.getElementById('edFxAmt').value; if(!amt||amt<=0)return;
     x.name=nm; x.amount=amt;
-    const d=+document.getElementById('edFxDay').value||null;
-    x.day=d&&d>=1&&d<=31?d:null;
+    const dVal=document.getElementById('edFxDay').value;
+    x.day=dVal?new Date(dVal+'T00:00').getDate():null;
     x.bank=document.getElementById('edFxBank').value.trim();
   }else if(t.type==='loan'){
     const x=D.loans.find(l=>l.id===t.id); if(!x)return;
@@ -939,7 +940,7 @@ function moneyHTML(){
     <div class="row wrapm">
       <input id="fxName" placeholder="항목 (예: 월세, 통신비, 구독료)" style="flex:2;min-width:140px" onkeydown="if(event.key==='Enter')addFix()">
       <input id="fxAmt" type="number" min="0" placeholder="금액" style="flex:1;min-width:100px">
-      <input id="fxDay" type="number" min="1" max="31" placeholder="결제일" style="flex:1;min-width:80px">
+      <input id="fxDay" type="date" title="결제일 — 매달 이 날짜의 '일'로 반복 기록됩니다" style="flex:1;min-width:150px">
       <input id="fxBank" placeholder="은행명 (선택)" style="flex:1;min-width:100px">
       <button class="btn" onclick="addFix()">추가</button>
     </div>
@@ -1037,7 +1038,8 @@ window.addFix=()=>{
   const n=document.getElementById('fxName').value.trim();
   const a=+document.getElementById('fxAmt').value;
   if(!n||!a||a<=0)return;
-  const d=+document.getElementById('fxDay').value||null;
+  const dVal=document.getElementById('fxDay').value; // yyyy-mm-dd
+  const d=dVal?new Date(dVal+'T00:00').getDate():null;
   D.fixed.push({id:uid(),name:n,amount:a,day:d&&d>=1&&d<=31?d:null,bank:document.getElementById('fxBank').value.trim()});
   save();render();
 };
