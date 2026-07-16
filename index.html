@@ -283,7 +283,8 @@ const PRI={1:'높음',2:'보통',3:'낮음'};
 let view='home', todoTab='daily', todoCat='all', calY, calM, calSel=todayS(), dayTab='ev',
     diaryMood='🙂', diaryEditId=null, calDiaryEditId=null, calDiaryMood='🙂', modalOpen=false,
     monY, monM, monType='out', editTarget=null, moneyBank='all',
-    dyPendingPhotos=[], calDyPendingPhotos=[], photoView=null;
+    dyPendingPhotos=[], calDyPendingPhotos=[], photoView=null,
+    evMemoOpen=false, dayTdMemoOpen=false, todoMemoOpen=false;
 const now=new Date(); calY=now.getFullYear(); calM=now.getMonth(); monY=calY; monM=calM;
 document.getElementById('todayLine').textContent=
   now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'long'})+' · 오늘도 한 걸음씩';
@@ -392,7 +393,8 @@ function editModalHTML(){
           <option value="3" ${x.pri==3?'selected':''}>낮음</option>
         </select>
         ${dateFieldFor(t.scope,x.date)}
-      </div>`;
+      </div>
+      <textarea id="edMemo" class="mt" rows="3" placeholder="메모 (자세한 내용)">${esc(x.memo||'')}</textarea>`;
   }else if(t.type==='event'){
     const x=D.events.find(e=>e.id===t.id); if(!x){editTarget=null;return '';}
     title='일정 수정';
@@ -401,7 +403,8 @@ function editModalHTML(){
       <div class="row wrapm mt">
         <input id="edDate2" type="date" value="${x.date}" style="flex:1;min-width:130px">
         <input id="edTime" type="time" value="${x.time||''}" style="flex:1;min-width:110px">
-      </div>`;
+      </div>
+      <textarea id="edEvMemo" class="mt" rows="3" placeholder="메모 (자세한 내용)">${esc(x.memo||'')}</textarea>`;
   }else if(t.type==='growth'){
     const x=D.growth.find(g=>g.id===t.id); if(!x){editTarget=null;return '';}
     title='자기계발 목표 수정';
@@ -501,12 +504,14 @@ window.saveEdit=()=>{
     x.cat=document.getElementById('edCat').value;
     x.pri=+document.getElementById('edPri').value;
     x.date=String(document.getElementById('edDate').value);
+    x.memo=document.getElementById('edMemo').value.trim();
   }else if(t.type==='event'){
     const x=D.events.find(e=>e.id===t.id); if(!x)return;
     const txt=document.getElementById('edTitle').value.trim(); if(!txt)return;
     x.title=txt;
     x.date=document.getElementById('edDate2').value||x.date;
     x.time=document.getElementById('edTime').value;
+    x.memo=document.getElementById('edEvMemo').value.trim();
   }else if(t.type==='growth'){
     const x=D.growth.find(g=>g.id===t.id); if(!x)return;
     const txt=document.getElementById('edGTitle').value.trim(); if(!txt)return;
@@ -648,12 +653,14 @@ function dayEvHTML(){
   const evs=D.events.filter(e=>e.date===calSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   return `
   <div class="row wrapm">
-    <input id="evTitle" placeholder="일정 내용" style="flex:2;min-width:130px" onkeydown="if(event.key==='Enter')addEv()">
+    <input id="evTitle" placeholder="일정 내용" style="flex:2;min-width:130px" onkeydown="if(event.key==='Enter'&&!${evMemoOpen})addEv()">
     <input id="evTime" type="time" style="flex:1;min-width:105px">
+    <button class="btn ghost" onclick="evMemoOpen=!evMemoOpen;render()">${evMemoOpen?'📝 메모 닫기':'📝 메모 추가'}</button>
     <button class="btn" onclick="addEv()">추가</button>
   </div>
+  ${evMemoOpen?'<textarea id="evMemo" class="mt" rows="3" placeholder="자세한 내용을 적어보세요"></textarea>':''}
   <ul class="plain mt">
-    ${evs.length?evs.map(e=>`<li class="item"><span class="txt">${e.time?`<b style="color:var(--accent-deep)">${e.time}</b> `:''}${esc(e.title)}</span><button class="icon" onclick="openEditEvent('${e.id}')">✎</button><button class="icon" onclick="delEv('${e.id}')">✕</button></li>`).join(''):'<div class="empty">이 날의 일정이 없습니다.</div>'}
+    ${evs.length?evs.map(e=>`<li class="item"><span class="txt">${e.time?`<b style="color:var(--accent-deep)">${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span title="${esc(e.memo)}" style="cursor:help;margin-left:5px">📝</span>`:''}</span><button class="icon" onclick="openEditEvent('${e.id}')">✎</button><button class="icon" onclick="delEv('${e.id}')">✕</button></li>`).join(''):'<div class="empty">이 날의 일정이 없습니다.</div>'}
   </ul>`;
 }
 function dayTdHTML(){
@@ -661,11 +668,13 @@ function dayTdHTML(){
   const doneN=list.filter(x=>x.done).length;
   return `
   <div class="row wrapm">
-    <input id="dTdText" placeholder="이 날 할 일" style="flex:2;min-width:130px" onkeydown="if(event.key==='Enter')addDayTd()">
+    <input id="dTdText" placeholder="이 날 할 일" style="flex:2;min-width:130px" onkeydown="if(event.key==='Enter'&&!${dayTdMemoOpen})addDayTd()">
     <select id="dTdCat" style="flex:1;min-width:110px">${catOptionsHTML()}</select>
     <select id="dTdPri" style="flex:1;min-width:80px"><option value="1">높음</option><option value="2" selected>보통</option><option value="3">낮음</option></select>
+    <button class="btn ghost" onclick="dayTdMemoOpen=!dayTdMemoOpen;render()">${dayTdMemoOpen?'📝 메모 닫기':'📝 메모 추가'}</button>
     <button class="btn" onclick="addDayTd()">추가</button>
   </div>
+  ${dayTdMemoOpen?'<textarea id="dTdMemo" class="mt" rows="3" placeholder="자세한 내용을 적어보세요"></textarea>':''}
   ${list.length?`<div class="bar mt"><div style="width:${Math.round(doneN/list.length*100)}%"></div></div>`:''}
   <ul class="plain mt">
     ${list.length?list.map(todoItem.bind(null,'daily')).join(''):'<div class="empty">이 날의 할 일이 없습니다.</div>'}
@@ -707,10 +716,10 @@ function dayModalHTML(){
 
       ${!evs.length&&!tds.length?'<div class="empty">이 날의 기록이 없습니다.</div>':`
       <ul class="plain" style="margin-top:8px">
-        ${evs.map(e=>`<li class="item"><span class="txt">${e.time?`<b>${e.time}</b> `:''}${esc(e.title)}</span></li>`).join('')}
+        ${evs.map(e=>`<li class="item"><span class="txt">${e.time?`<b>${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span title="${esc(e.memo)}" style="cursor:help;margin-left:4px">📝</span>`:''}</span></li>`).join('')}
         ${tds.map(x=>`<li class="item ${x.done?'done':''}">
           <input type="checkbox" class="chk" ${x.done?'checked':''} onchange="tgTodo('daily','${x.id}')">
-          <span class="txt">${esc(x.text)}</span>
+          <span class="txt">${esc(x.text)}${x.memo?`<span title="${esc(x.memo)}" style="cursor:help;margin-left:4px">📝</span>`:''}</span>
           <span class="cat">${esc(x.cat||'해야 하는 일')}</span>
         </li>`).join('')}
       </ul>`}
@@ -724,13 +733,17 @@ window.selDay=ds=>{calSel=ds;calDiaryEditId=null;calDyPendingPhotos=[];render();
 window.setDayTab=t=>{dayTab=t;render();};
 window.addEv=()=>{
   const t=document.getElementById('evTitle').value.trim(); if(!t)return;
-  D.events.push({id:uid(),date:calSel,title:t,time:document.getElementById('evTime').value});
+  const memoEl=document.getElementById('evMemo');
+  D.events.push({id:uid(),date:calSel,title:t,time:document.getElementById('evTime').value,memo:memoEl?memoEl.value.trim():''});
+  evMemoOpen=false;
   save();render();
 };
 window.delEv=id=>{D.events=D.events.filter(e=>e.id!==id);save();render();};
 window.addDayTd=()=>{
   const t=document.getElementById('dTdText').value.trim(); if(!t)return;
-  D.todos.daily.push({id:uid(),text:t,pri:+document.getElementById('dTdPri').value,cat:document.getElementById('dTdCat').value,done:false,date:calSel});
+  const memoEl=document.getElementById('dTdMemo');
+  D.todos.daily.push({id:uid(),text:t,pri:+document.getElementById('dTdPri').value,cat:document.getElementById('dTdCat').value,done:false,date:calSel,memo:memoEl?memoEl.value.trim():''});
+  dayTdMemoOpen=false;
   save();render();
 };
 window.editCalDy=id=>{
@@ -764,7 +777,7 @@ window.saveCalDy=()=>{
 function todoItem(scope,x){
   return `<li class="item ${x.done?'done':''}">
     <input type="checkbox" class="chk" ${x.done?'checked':''} onchange="tgTodo('${scope}','${x.id}')">
-    <span class="txt">${esc(x.text)}${x.date&&scope!=='daily'?`<span style="color:var(--ink-soft);font-size:12px"> · ${x.date}</span>`:''}</span>
+    <span class="txt">${esc(x.text)}${x.memo?`<span title="${esc(x.memo)}" style="cursor:help;margin-left:4px">📝</span>`:''}${x.date&&scope!=='daily'?`<span style="color:var(--ink-soft);font-size:12px"> · ${x.date}</span>`:''}</span>
     <span class="cat">${esc(x.cat||'해야 하는 일')}</span>
     <span class="tag p${x.pri}">${PRI[x.pri]}</span>
     <button class="icon" onclick="openEditTodo('${scope}','${x.id}')">✎</button>
@@ -797,14 +810,16 @@ function todoHTML(){
     </div>
     ${D.categories.length>1?`<div class="hint" style="margin-top:0;margin-bottom:12px">카테고리 삭제: ${D.categories.map(c=>`<button class="icon" style="border:1px solid var(--line);border-radius:99px;padding:1px 9px;margin:3px 4px 0 0;font-size:11.5px" onclick="delCategory('${esc(c)}')" title="'${esc(c)}' 삭제">${esc(c)} ✕</button>`).join('')}</div>`:''}
     <div class="row wrapm">
-      <input id="tdText" placeholder="할 일을 입력하세요" style="flex:3;min-width:150px" onkeydown="if(event.key==='Enter')addTodo()">
+      <input id="tdText" placeholder="할 일을 입력하세요" style="flex:3;min-width:150px" onkeydown="if(event.key==='Enter'&&!${todoMemoOpen})addTodo()">
       <select id="tdCat" style="flex:1;min-width:115px">${catOptionsHTML()}</select>
       ${dateInput}
       <select id="tdPri" style="flex:1;min-width:85px">
         <option value="1">높음</option><option value="2" selected>보통</option><option value="3">낮음</option>
       </select>
+      <button class="btn ghost" onclick="todoMemoOpen=!todoMemoOpen;render()">${todoMemoOpen?'📝 메모 닫기':'📝 메모 추가'}</button>
       <button class="btn" onclick="addTodo()">추가</button>
     </div>
+    ${todoMemoOpen?'<textarea id="tdMemo" class="mt" rows="3" placeholder="자세한 내용을 적어보세요"></textarea>':''}
     ${list.length?`<div class="bar mt"><div style="width:${Math.round(doneN/list.length*100)}%"></div></div>`:''}
     <ul class="plain mt">
       ${list.length?list.map(todoItem.bind(null,todoTab)).join(''):'<div class="empty">이 분류에 등록된 할 일이 없습니다.</div>'}
@@ -832,7 +847,9 @@ window.delCategory=name=>{
 };
 window.addTodo=()=>{
   const t=document.getElementById('tdText').value.trim(); if(!t)return;
-  D.todos[todoTab].push({id:uid(),text:t,pri:+document.getElementById('tdPri').value,cat:document.getElementById('tdCat').value,done:false,date:String(document.getElementById('tdDate').value)});
+  const memoEl=document.getElementById('tdMemo');
+  D.todos[todoTab].push({id:uid(),text:t,pri:+document.getElementById('tdPri').value,cat:document.getElementById('tdCat').value,done:false,date:String(document.getElementById('tdDate').value),memo:memoEl?memoEl.value.trim():''});
+  todoMemoOpen=false;
   save();render();
 };
 window.tgTodo=(s,id)=>{const x=D.todos[s].find(i=>i.id===id);if(x){x.done=!x.done;save();render();}};
