@@ -284,7 +284,7 @@ let view='home', todoTab='daily', todoCat='all', calY, calM, calSel=todayS(), da
     diaryMood='🙂', diaryEditId=null, calDiaryEditId=null, calDiaryMood='🙂', modalOpen=false,
     monY, monM, monType='out', editTarget=null, moneyBank='all',
     dyPendingPhotos=[], calDyPendingPhotos=[], photoView=null,
-    evMemoOpen=false, dayTdMemoOpen=false, todoMemoOpen=false, memoView=null;
+    evMemoOpen=false, dayTdMemoOpen=false, todoMemoOpen=false, memoView=null, evColorPick='#111111';
 const now=new Date(); calY=now.getFullYear(); calM=now.getMonth(); monY=calY; monM=calM;
 document.getElementById('todayLine').textContent=
   now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'long'})+' · 오늘도 한 걸음씩';
@@ -423,7 +423,8 @@ function editModalHTML(){
         <input id="edDate2" type="date" value="${x.date}" style="flex:1;min-width:130px">
         <input id="edTime" type="time" value="${x.time||''}" style="flex:1;min-width:110px">
       </div>
-      <textarea id="edEvMemo" class="mt" rows="3" placeholder="메모 (자세한 내용)">${esc(x.memo||'')}</textarea>`;
+      <textarea id="edEvMemo" class="mt" rows="3" placeholder="메모 (자세한 내용)">${esc(x.memo||'')}</textarea>
+      ${colorSwatchHTML(t.color,'pickEditEvColor')}`;
   }else if(t.type==='growth'){
     const x=D.growth.find(g=>g.id===t.id); if(!x){editTarget=null;return '';}
     title='자기계발 목표 수정';
@@ -506,7 +507,12 @@ function editModalHTML(){
 }
 window.closeEdit=()=>{editTarget=null;render();};
 window.openEditTodo=(scope,id)=>{editTarget={type:'todo',scope,id};render();};
-window.openEditEvent=id=>{editTarget={type:'event',id};render();};
+window.openEditEvent=id=>{
+  const x=D.events.find(e=>e.id===id);
+  editTarget={type:'event',id,color:(x&&x.color)||'#111111'};
+  render();
+};
+window.pickEditEvColor=c=>{if(editTarget)editTarget.color=c;render();};
 window.openEditGrowth=id=>{editTarget={type:'growth',id};render();};
 window.openEditCheck=(gid,id)=>{editTarget={type:'check',gid,id};render();};
 window.openEditBucket=id=>{editTarget={type:'bucket',id};render();};
@@ -531,6 +537,7 @@ window.saveEdit=()=>{
     x.date=document.getElementById('edDate2').value||x.date;
     x.time=document.getElementById('edTime').value;
     x.memo=document.getElementById('edEvMemo').value.trim();
+    x.color=t.color||'#111111';
   }else if(t.type==='growth'){
     const x=D.growth.find(g=>g.id===t.id); if(!x)return;
     const txt=document.getElementById('edGTitle').value.trim(); if(!txt)return;
@@ -632,7 +639,7 @@ function calHTML(){
       const items=[...evs.map(e=>({t:'ev',o:e})),...tds.map(t=>({t:'td',o:t}))];
       const MAX=3;
       const shown=items.slice(0,MAX).map(it=>it.t==='ev'
-        ?`<div class="cell-ev">${esc(it.o.title)}</div>`
+        ?`<div class="cell-ev" style="background:${it.o.color||'#111111'}">${esc(it.o.title)}</div>`
         :`<div class="cell-td ${it.o.done?'done':''}">${it.o.done?'✓':'▢'} ${esc(it.o.text)}</div>`).join('');
       const more=items.length>MAX?`<div class="cell-more">+${items.length-MAX}개 더보기</div>`:'';
       cells+=`<td class="${ds<todayS()?'past ':''}${ds===todayS()?'today ':''}${ds===calSel?'sel':''}" onclick="openDay('${ds}')">
@@ -668,6 +675,10 @@ function calHTML(){
     ${dayTab==='ev'?dayEvHTML():dayTab==='td'?dayTdHTML():dayDyHTML()}
   </div>`;
 }
+function colorSwatchHTML(selected,onclickName){
+  return `<div class="row wrapm mt" style="gap:6px">${EVENT_COLORS.map(c=>`
+    <button onclick="${onclickName}('${c}')" style="width:24px;height:24px;border-radius:99px;background:${c};border:${c===selected?'3px solid #111':'1.5px solid var(--line)'};cursor:pointer;padding:0"></button>`).join('')}</div>`;
+}
 function dayEvHTML(){
   const evs=D.events.filter(e=>e.date===calSel).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
   return `
@@ -677,11 +688,13 @@ function dayEvHTML(){
     <button class="btn ghost" onclick="evMemoOpen=!evMemoOpen;render()">${evMemoOpen?'📝 메모 닫기':'📝 메모 추가'}</button>
     <button class="btn" onclick="addEv()">추가</button>
   </div>
+  ${colorSwatchHTML(evColorPick,'pickEvColor')}
   ${evMemoOpen?'<textarea id="evMemo" class="mt" rows="3" placeholder="자세한 내용을 적어보세요"></textarea>':''}
   <ul class="plain mt">
-    ${evs.length?evs.map(e=>`<li class="item"><span class="txt">${e.time?`<b style="color:var(--accent-deep)">${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span onclick="event.stopPropagation();openMemoFor('event',null,'${e.id}')" style="cursor:pointer;margin-left:5px" title="메모 보기">📝</span>`:''}</span><button class="icon" onclick="openEditEvent('${e.id}')">✎</button><button class="icon" onclick="delEv('${e.id}')">✕</button></li>`).join(''):'<div class="empty">이 날의 일정이 없습니다.</div>'}
+    ${evs.length?evs.map(e=>`<li class="item"><span class="txt"><span style="display:inline-block;width:9px;height:9px;border-radius:99px;background:${e.color||'#111111'};margin-right:6px"></span>${e.time?`<b style="color:var(--accent-deep)">${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span onclick="event.stopPropagation();openMemoFor('event',null,'${e.id}')" style="cursor:pointer;margin-left:5px" title="메모 보기">📝</span>`:''}</span><button class="icon" onclick="openEditEvent('${e.id}')">✎</button><button class="icon" onclick="delEv('${e.id}')">✕</button></li>`).join(''):'<div class="empty">이 날의 일정이 없습니다.</div>'}
   </ul>`;
 }
+window.pickEvColor=c=>{evColorPick=c;render();};
 function dayTdHTML(){
   const list=D.todos.daily.filter(t=>t.date===calSel).sort((a,b)=>a.done-b.done||a.pri-b.pri);
   const doneN=list.filter(x=>x.done).length;
@@ -735,7 +748,7 @@ function dayModalHTML(){
 
       ${!evs.length&&!tds.length?'<div class="empty">이 날의 기록이 없습니다.</div>':`
       <ul class="plain" style="margin-top:8px">
-        ${evs.map(e=>`<li class="item"><span class="txt">${e.time?`<b>${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span onclick="event.stopPropagation();openMemoFor('event',null,'${e.id}')" style="cursor:pointer;margin-left:4px" title="메모 보기">📝</span>`:''}</span></li>`).join('')}
+        ${evs.map(e=>`<li class="item"><span class="txt"><span style="display:inline-block;width:9px;height:9px;border-radius:99px;background:${e.color||'#111111'};margin-right:6px"></span>${e.time?`<b>${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span onclick="event.stopPropagation();openMemoFor('event',null,'${e.id}')" style="cursor:pointer;margin-left:4px" title="메모 보기">📝</span>`:''}</span></li>`).join('')}
         ${tds.map(x=>`<li class="item ${x.done?'done':''}">
           <input type="checkbox" class="chk" ${x.done?'checked':''} onchange="tgTodo('daily','${x.id}')">
           <span class="txt">${esc(x.text)}${x.memo?`<span onclick="event.stopPropagation();openMemoFor('todo','daily','${x.id}')" style="cursor:pointer;margin-left:4px" title="메모 보기">📝</span>`:''}</span>
@@ -753,7 +766,7 @@ window.setDayTab=t=>{dayTab=t;render();};
 window.addEv=()=>{
   const t=document.getElementById('evTitle').value.trim(); if(!t)return;
   const memoEl=document.getElementById('evMemo');
-  D.events.push({id:uid(),date:calSel,title:t,time:document.getElementById('evTime').value,memo:memoEl?memoEl.value.trim():''});
+  D.events.push({id:uid(),date:calSel,title:t,time:document.getElementById('evTime').value,memo:memoEl?memoEl.value.trim():'',color:evColorPick});
   evMemoOpen=false;
   save();render();
 };
@@ -985,7 +998,10 @@ window.tgB=id=>{const b=D.bucket.find(x=>x.id===id);if(b){b.done=!b.done;save();
 window.delB=id=>{D.bucket=D.bucket.filter(x=>x.id!==id);save();render();};
 
 /* ================= 가계부 ================= */
+/* ================= 일정 색상 ================= */
+const EVENT_COLORS=['#111111','#E4572E','#E8A33D','#3E7C59','#3B82C4','#8B5CF6','#D2688F','#0E9488'];
 const OUT_CATS=['식비','카페/간식','교통','쇼핑','주거/통신','문화/여가','의료/건강','기타'];
+
 const IN_CATS=['급여','용돈','부수입','기타'];
 const won=n=>n.toLocaleString('ko-KR')+'원';
 function moneyHTML(){
