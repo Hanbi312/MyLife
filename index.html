@@ -81,9 +81,7 @@
   .tag.p1{background:#111;color:#fff}
   .tag.p2{background:#fff;color:#444;border-color:#BBB}
   .tag.p3{background:#F0F0F0;color:#999}
-  .cat{font-size:11px;padding:2px 8px;border-radius:99px;margin-top:3px;white-space:nowrap;font-weight:600;border:1.5px solid transparent}
-  .cat.task{background:#fff;color:#111;border-color:#111}
-  .cat.growth{background:#EFEFEF;color:#555}
+  .cat{font-size:11px;padding:2px 8px;border-radius:99px;margin-top:3px;white-space:nowrap;font-weight:600;border:1.5px solid #111;background:#fff;color:#111}
   .empty{color:var(--ink-soft);font-size:13.5px;padding:16px 4px;text-align:center}
   .bar{height:8px;background:var(--accent-soft);border-radius:99px;overflow:hidden;margin-top:7px}
   .bar>div{height:100%;background:#111;border-radius:99px;transition:width .3s}
@@ -216,13 +214,19 @@
 <script>
 /* ================= 데이터 & 저장 ================= */
 const KEY='life-hub-v1';
-let D={events:[],todos:{daily:[],monthly:[],yearly:[]},growth:[],bucket:[],diary:[],ledger:[],fixed:[],loans:[],savings:[]};
+let D={events:[],todos:{daily:[],monthly:[],yearly:[]},growth:[],bucket:[],diary:[],ledger:[],fixed:[],loans:[],savings:[],categories:['해야 하는 일','자기계발']};
 
 function hasLocal(){try{localStorage.setItem('__t','1');localStorage.removeItem('__t');return true;}catch(e){return false;}}
 const useLocal=hasLocal(); // 로그인 전/임시 백업용
 
 function migrate(){ // 예전 데이터 보정
-  ['daily','monthly','yearly'].forEach(k=>(D.todos[k]||[]).forEach(t=>{if(!t.cat)t.cat='task';}));
+  if(!Array.isArray(D.categories)||!D.categories.length)D.categories=['해야 하는 일','자기계발'];
+  const LEGACY={task:'해야 하는 일',growth:'자기계발'};
+  ['daily','monthly','yearly'].forEach(k=>(D.todos[k]||[]).forEach(t=>{
+    if(!t.cat)t.cat='해야 하는 일';
+    else if(LEGACY[t.cat])t.cat=LEGACY[t.cat]; // 예전 코드(task/growth)를 실제 이름으로 변환
+    if(!D.categories.includes(t.cat))D.categories.push(t.cat); // 예전 데이터에만 있던 카테고리도 목록에 보존
+  }));
   (D.growth||[]).forEach(g=>{if(!Array.isArray(g.checks))g.checks=[];});
   if(!Array.isArray(D.ledger))D.ledger=[];
   if(!Array.isArray(D.fixed))D.fixed=[];
@@ -273,12 +277,13 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const todayS=()=>fmt(new Date());
 const PRI={1:'높음',2:'보통',3:'낮음'};
-const CAT={task:'해야 하는 일',growth:'자기계발'};
+/* 카테고리는 이제 이름(문자열) 자체를 저장/표시합니다. D.categories에서 관리 */
 
 /* ================= 상태 ================= */
 let view='home', todoTab='daily', todoCat='all', calY, calM, calSel=todayS(), dayTab='ev',
     diaryMood='🙂', diaryEditId=null, calDiaryEditId=null, calDiaryMood='🙂', modalOpen=false,
-    monY, monM, monType='out', editTarget=null, moneyBank='all';
+    monY, monM, monType='out', editTarget=null, moneyBank='all',
+    dyPendingPhotos=[], calDyPendingPhotos=[], photoView=null;
 const now=new Date(); calY=now.getFullYear(); calM=now.getMonth(); monY=calY; monM=calM;
 document.getElementById('todayLine').textContent=
   now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'long'})+' · 오늘도 한 걸음씩';
@@ -291,7 +296,8 @@ document.getElementById('nav').addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
-    if(editTarget){editTarget=null;render();}
+    if(photoView){photoView=null;render();}
+    else if(editTarget){editTarget=null;render();}
     else if(modalOpen){modalOpen=false;render();}
   }
 });
@@ -321,6 +327,47 @@ function render(){
   if(view==='money')m.innerHTML=moneyHTML();
   if(view==='diary')m.innerHTML=diaryHTML();
   if(editTarget)m.insertAdjacentHTML('beforeend',editModalHTML());
+  if(photoView)m.insertAdjacentHTML('beforeend',photoModalHTML());
+}
+function photoModalHTML(){
+  return `<div class="overlay" onclick="closePhoto()" style="cursor:zoom-out">
+    <img src="${photoView}" style="max-width:92vw;max-height:88vh;border-radius:14px;box-shadow:0 12px 44px rgba(0,0,0,.45);object-fit:contain">
+  </div>`;
+}
+window.openPhoto=url=>{photoView=url;render();};
+window.closePhoto=()=>{photoView=null;render();};
+/* 사진을 적당한 크기로 압축해서 base64로 변환 (저장 용량 절약) */
+function compressImage(file,maxW=1000,quality=0.72){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(w>maxW){h=Math.round(h*maxW/w);w=maxW;}
+        const canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg',quality));
+      };
+      img.onerror=()=>reject(new Error('이미지를 읽을 수 없습니다'));
+      img.src=e.target.result;
+    };
+    reader.onerror=()=>reject(new Error('파일을 읽을 수 없습니다'));
+    reader.readAsDataURL(file);
+  });
+}
+function photoStripHTML(photos,removeFnName){
+  if(!photos||!photos.length)return '';
+  return `<div class="row wrapm mt" style="gap:8px">${photos.map((p,i)=>`
+    <div style="position:relative">
+      <img src="${p}" style="width:66px;height:66px;object-fit:cover;border-radius:9px;border:1.5px solid var(--line);cursor:pointer" onclick="openPhoto('${p}')">
+      <button class="icon" style="position:absolute;top:-9px;right:-9px;background:#111;color:#fff;border-radius:99px;width:19px;height:19px;font-size:10px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center" onclick="${removeFnName}(${i})">✕</button>
+    </div>`).join('')}</div>`;
+}
+function photoGridHTML(photos){
+  if(!photos||!photos.length)return '';
+  return `<div class="row wrapm mt" style="gap:6px">${photos.map(p=>`<img src="${p}" style="width:76px;height:76px;object-fit:cover;border-radius:9px;border:1px solid var(--line);cursor:pointer" onclick="event.stopPropagation();openPhoto('${p}')">`).join('')}</div>`;
 }
 
 /* ================= 공용 수정 모달 ================= */
@@ -338,10 +385,7 @@ function editModalHTML(){
     body=`
       <input id="edText" value="${esc(x.text)}" placeholder="할 일" class="mt">
       <div class="row wrapm mt">
-        <select id="edCat" style="flex:1;min-width:120px">
-          <option value="task" ${x.cat!=='growth'?'selected':''}>해야 하는 일</option>
-          <option value="growth" ${x.cat==='growth'?'selected':''}>자기계발</option>
-        </select>
+        <select id="edCat" style="flex:1;min-width:120px">${catOptionsHTML(x.cat)}</select>
         <select id="edPri" style="flex:1;min-width:90px">
           <option value="1" ${x.pri==1?'selected':''}>높음</option>
           <option value="2" ${x.pri==2?'selected':''}>보통</option>
@@ -618,7 +662,7 @@ function dayTdHTML(){
   return `
   <div class="row wrapm">
     <input id="dTdText" placeholder="이 날 할 일" style="flex:2;min-width:130px" onkeydown="if(event.key==='Enter')addDayTd()">
-    <select id="dTdCat" style="flex:1;min-width:110px"><option value="task">해야 하는 일</option><option value="growth">자기계발</option></select>
+    <select id="dTdCat" style="flex:1;min-width:110px">${catOptionsHTML()}</select>
     <select id="dTdPri" style="flex:1;min-width:80px"><option value="1">높음</option><option value="2" selected>보통</option><option value="3">낮음</option></select>
     <button class="btn" onclick="addDayTd()">추가</button>
   </div>
@@ -635,6 +679,7 @@ function dayDyHTML(){
     <div class="diary-entry ${calDiaryEditId===d.id?'':''}" onclick="editCalDy('${d.id}')" title="눌러서 수정">
       <div class="d-head"><span><b>${d.date}</b> ${d.mood||''}</span><button class="icon" onclick="event.stopPropagation();delDy('${d.id}')">✕</button></div>
       <div class="d-body">${esc(d.text)}</div>
+      ${photoGridHTML(d.photos)}
     </div>`).join(''):'<div class="empty">이 날의 일기가 아직 없어요.</div>'}
   <div class="mt" style="border-top:1.5px dashed var(--line);padding-top:13px">
     <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:6px">
@@ -642,8 +687,10 @@ function dayDyHTML(){
       <div class="mood-pick">${MOODS.map(m=>`<button class="${calDiaryMood===m?'on':''}" onclick="calDiaryMood='${m}';render()">${m}</button>`).join('')}</div>
     </div>
     <textarea id="calDyText" class="mt" rows="4" placeholder="이 날의 이야기를 남겨보세요.">${editing?esc(editing.text):''}</textarea>
+    <input type="file" id="calDyPhotoInput" accept="image/*" multiple class="mt" onchange="handleCalDyPhotos(this.files)">
+    ${photoStripHTML(calDyPendingPhotos,'removeCalDyPhoto')}
     <div class="row mt" style="justify-content:flex-end">
-      ${editing?`<button class="btn ghost" onclick="calDiaryEditId=null;render()">취소</button>`:''}
+      ${editing?`<button class="btn ghost" onclick="cancelCalDyEdit()">취소</button>`:''}
       <button class="btn" onclick="saveCalDy()">${editing?'수정 완료':'일기 저장'}</button>
     </div>
   </div>`;
@@ -664,16 +711,16 @@ function dayModalHTML(){
         ${tds.map(x=>`<li class="item ${x.done?'done':''}">
           <input type="checkbox" class="chk" ${x.done?'checked':''} onchange="tgTodo('daily','${x.id}')">
           <span class="txt">${esc(x.text)}</span>
-          <span class="cat ${x.cat||'task'}">${CAT[x.cat||'task']}</span>
+          <span class="cat">${esc(x.cat||'해야 하는 일')}</span>
         </li>`).join('')}
       </ul>`}
     </div>
   </div>`;
 }
-window.openDay=ds=>{calSel=ds;calDiaryEditId=null;modalOpen=true;render();};
+window.openDay=ds=>{calSel=ds;calDiaryEditId=null;calDyPendingPhotos=[];modalOpen=true;render();};
 window.closeDay=()=>{modalOpen=false;render();};
 window.moveM=d=>{calM+=d;if(calM<0){calM=11;calY--}if(calM>11){calM=0;calY++}render();};
-window.selDay=ds=>{calSel=ds;calDiaryEditId=null;render();};
+window.selDay=ds=>{calSel=ds;calDiaryEditId=null;calDyPendingPhotos=[];render();};
 window.setDayTab=t=>{dayTab=t;render();};
 window.addEv=()=>{
   const t=document.getElementById('evTitle').value.trim(); if(!t)return;
@@ -686,16 +733,30 @@ window.addDayTd=()=>{
   D.todos.daily.push({id:uid(),text:t,pri:+document.getElementById('dTdPri').value,cat:document.getElementById('dTdCat').value,done:false,date:calSel});
   save();render();
 };
-window.editCalDy=id=>{calDiaryEditId=id;const d=D.diary.find(x=>x.id===id);if(d&&d.mood)calDiaryMood=d.mood;render();};
+window.editCalDy=id=>{
+  calDiaryEditId=id;
+  const d=D.diary.find(x=>x.id===id);
+  if(d){ if(d.mood)calDiaryMood=d.mood; calDyPendingPhotos=(d.photos||[]).slice(); }
+  render();
+};
+window.cancelCalDyEdit=()=>{calDiaryEditId=null;calDyPendingPhotos=[];render();};
+window.handleCalDyPhotos=async(files)=>{
+  for(const f of files){
+    try{ calDyPendingPhotos.push(await compressImage(f)); }catch(e){console.error(e);}
+  }
+  render();
+};
+window.removeCalDyPhoto=i=>{calDyPendingPhotos.splice(i,1);render();};
 window.saveCalDy=()=>{
   const t=document.getElementById('calDyText').value.trim(); if(!t)return;
   if(calDiaryEditId){
     const d=D.diary.find(x=>x.id===calDiaryEditId);
-    if(d){d.text=t;d.mood=calDiaryMood;}
+    if(d){d.text=t;d.mood=calDiaryMood;d.photos=calDyPendingPhotos.slice();}
     calDiaryEditId=null;
   }else{
-    D.diary.push({id:uid(),date:calSel,mood:calDiaryMood,text:t});
+    D.diary.push({id:uid(),date:calSel,mood:calDiaryMood,text:t,photos:calDyPendingPhotos.slice()});
   }
+  calDyPendingPhotos=[];
   save();render();
 };
 
@@ -704,7 +765,7 @@ function todoItem(scope,x){
   return `<li class="item ${x.done?'done':''}">
     <input type="checkbox" class="chk" ${x.done?'checked':''} onchange="tgTodo('${scope}','${x.id}')">
     <span class="txt">${esc(x.text)}${x.date&&scope!=='daily'?`<span style="color:var(--ink-soft);font-size:12px"> · ${x.date}</span>`:''}</span>
-    <span class="cat ${x.cat||'task'}">${CAT[x.cat||'task']}</span>
+    <span class="cat">${esc(x.cat||'해야 하는 일')}</span>
     <span class="tag p${x.pri}">${PRI[x.pri]}</span>
     <button class="icon" onclick="openEditTodo('${scope}','${x.id}')">✎</button>
     <button class="icon" onclick="delTodo('${scope}','${x.id}')">✕</button></li>`;
@@ -712,7 +773,7 @@ function todoItem(scope,x){
 function todoHTML(){
   const label={daily:'일간',monthly:'월간',yearly:'연간'};
   let list=D.todos[todoTab].slice();
-  if(todoCat!=='all')list=list.filter(x=>(x.cat||'task')===todoCat);
+  if(todoCat!=='all')list=list.filter(x=>(x.cat||'해야 하는 일')===todoCat);
   list.sort((a,b)=>a.done-b.done||a.pri-b.pri);
   const doneN=list.filter(x=>x.done).length;
   const dateInput = todoTab==='daily'
@@ -728,12 +789,16 @@ function todoHTML(){
     <h2>${label[todoTab]} 투두리스트 <span class="sub">${doneN}/${list.length} 완료</span></h2>
     <div class="chips">
       <button class="all ${todoCat==='all'?'on':''}" onclick="setTodoCat('all')">전체</button>
-      <button class="task ${todoCat==='task'?'on':''}" onclick="setTodoCat('task')">해야 하는 일</button>
-      <button class="growth ${todoCat==='growth'?'on':''}" onclick="setTodoCat('growth')">자기계발</button>
+      ${D.categories.map(c=>`<button class="task ${todoCat===c?'on':''}" onclick="setTodoCat('${esc(c)}')">${esc(c)}</button>`).join('')}
     </div>
+    <div class="row wrapm" style="margin-bottom:4px">
+      <input id="newCatName" placeholder="새 카테고리 추가 (예: 집안일, 운동)" style="flex:2;min-width:170px" onkeydown="if(event.key==='Enter')addCategory()">
+      <button class="btn ghost" onclick="addCategory()">＋ 카테고리 추가</button>
+    </div>
+    ${D.categories.length>1?`<div class="hint" style="margin-top:0;margin-bottom:12px">카테고리 삭제: ${D.categories.map(c=>`<button class="icon" style="border:1px solid var(--line);border-radius:99px;padding:1px 9px;margin:3px 4px 0 0;font-size:11.5px" onclick="delCategory('${esc(c)}')" title="'${esc(c)}' 삭제">${esc(c)} ✕</button>`).join('')}</div>`:''}
     <div class="row wrapm">
       <input id="tdText" placeholder="할 일을 입력하세요" style="flex:3;min-width:150px" onkeydown="if(event.key==='Enter')addTodo()">
-      <select id="tdCat" style="flex:1;min-width:115px"><option value="task">해야 하는 일</option><option value="growth">자기계발</option></select>
+      <select id="tdCat" style="flex:1;min-width:115px">${catOptionsHTML()}</select>
       ${dateInput}
       <select id="tdPri" style="flex:1;min-width:85px">
         <option value="1">높음</option><option value="2" selected>보통</option><option value="3">낮음</option>
@@ -744,11 +809,27 @@ function todoHTML(){
     <ul class="plain mt">
       ${list.length?list.map(todoItem.bind(null,todoTab)).join(''):'<div class="empty">이 분류에 등록된 할 일이 없습니다.</div>'}
     </ul>
-    <div class="hint">종류(해야 하는 일·자기계발)와 우선순위로 나누어 관리할 수 있어요. 우선순위 순으로 자동 정렬됩니다.</div>
+    <div class="hint">카테고리와 우선순위로 나누어 관리할 수 있어요. 카테고리는 자유롭게 추가·삭제할 수 있습니다.</div>
   </div>`;
+}
+function catOptionsHTML(selected){
+  return D.categories.map(c=>`<option value="${esc(c)}" ${c===selected?'selected':''}>${esc(c)}</option>`).join('');
 }
 window.setTodoTab=k=>{todoTab=k;render();};
 window.setTodoCat=c=>{todoCat=c;render();};
+window.addCategory=()=>{
+  const inp=document.getElementById('newCatName'); if(!inp)return;
+  const name=inp.value.trim(); if(!name)return;
+  if(!D.categories.includes(name))D.categories.push(name);
+  save();render();
+};
+window.delCategory=name=>{
+  if(D.categories.length<=1){alert('최소 1개의 카테고리는 있어야 해요.');return;}
+  if(!confirm(`'${name}' 카테고리를 삭제할까요? 이 카테고리를 쓰던 할 일은 그대로 남고, 필터·선택 목록에서만 빠집니다.`))return;
+  D.categories=D.categories.filter(c=>c!==name);
+  if(todoCat===name)todoCat='all';
+  save();render();
+};
 window.addTodo=()=>{
   const t=document.getElementById('tdText').value.trim(); if(!t)return;
   D.todos[todoTab].push({id:uid(),text:t,pri:+document.getElementById('tdPri').value,cat:document.getElementById('tdCat').value,done:false,date:String(document.getElementById('tdDate').value)});
@@ -1116,8 +1197,12 @@ function diaryHTML(){
       <div class="mood-pick">${MOODS.map(m=>`<button class="${diaryMood===m?'on':''}" onclick="diaryMood='${m}';render()">${m}</button>`).join('')}</div>
     </div>
     <textarea id="dyText" class="mt" rows="5" placeholder="오늘 하루는 어땠나요? 솔직한 마음을 남겨보세요.">${editing?esc(editing.text):''}</textarea>
+    <div class="row wrapm mt">
+      <input type="file" id="dyPhotoInput" accept="image/*" multiple style="flex:1;min-width:180px" onchange="handleDyPhotos(this.files)">
+    </div>
+    ${photoStripHTML(dyPendingPhotos,'removeDyPhoto')}
     <div class="row mt" style="justify-content:flex-end">
-      ${editing?`<button class="btn ghost" onclick="diaryEditId=null;render()">취소</button>`:''}
+      ${editing?`<button class="btn ghost" onclick="cancelDyEdit()">취소</button>`:''}
       <button class="btn" onclick="addDy()">${editing?'수정 완료':'일기 저장'}</button>
     </div>
   </div>
@@ -1126,23 +1211,38 @@ function diaryHTML(){
       <div class="diary-entry" onclick="editDy('${d.id}')" title="눌러서 수정">
         <div class="d-head"><span><b>${d.date}</b> &nbsp;${d.mood||''}</span><button class="icon" onclick="event.stopPropagation();delDy('${d.id}')">✕</button></div>
         <div class="d-body">${esc(d.text)}</div>
+        ${photoGridHTML(d.photos)}
       </div>`).join(''):'<div class="card"><div class="empty">아직 작성한 일기가 없어요.</div></div>'}
   </div>`;
 }
-window.editDy=id=>{diaryEditId=id;const d=D.diary.find(x=>x.id===id);if(d&&d.mood)diaryMood=d.mood;render();window.scrollTo({top:0,behavior:'smooth'});};
+window.handleDyPhotos=async(files)=>{
+  for(const f of files){
+    try{ dyPendingPhotos.push(await compressImage(f)); }catch(e){console.error(e);}
+  }
+  render();
+};
+window.removeDyPhoto=i=>{dyPendingPhotos.splice(i,1);render();};
+window.cancelDyEdit=()=>{diaryEditId=null;dyPendingPhotos=[];render();};
+window.editDy=id=>{
+  diaryEditId=id;
+  const d=D.diary.find(x=>x.id===id);
+  if(d){ if(d.mood)diaryMood=d.mood; dyPendingPhotos=(d.photos||[]).slice(); }
+  render();window.scrollTo({top:0,behavior:'smooth'});
+};
 window.addDy=()=>{
   const t=document.getElementById('dyText').value.trim(); if(!t)return;
   const date=document.getElementById('dyDate').value||todayS();
   if(diaryEditId){
     const d=D.diary.find(x=>x.id===diaryEditId);
-    if(d){d.text=t;d.date=date;d.mood=diaryMood;}
+    if(d){d.text=t;d.date=date;d.mood=diaryMood;d.photos=dyPendingPhotos.slice();}
     diaryEditId=null;
   }else{
-    D.diary.push({id:uid(),date,mood:diaryMood,text:t});
+    D.diary.push({id:uid(),date,mood:diaryMood,text:t,photos:dyPendingPhotos.slice()});
   }
+  dyPendingPhotos=[];
   save();render();
 };
-window.delDy=id=>{if(confirm('이 일기를 삭제할까요?')){D.diary=D.diary.filter(x=>x.id!==id);if(diaryEditId===id)diaryEditId=null;if(calDiaryEditId===id)calDiaryEditId=null;save();render();}};
+window.delDy=id=>{if(confirm('이 일기를 삭제할까요?')){D.diary=D.diary.filter(x=>x.id!==id);if(diaryEditId===id){diaryEditId=null;dyPendingPhotos=[];}if(calDiaryEditId===id){calDiaryEditId=null;calDyPendingPhotos=[];}save();render();}};
 
 /* ================= 백업 / 복원 ================= */
 window.exportData=()=>{
