@@ -284,7 +284,7 @@ let view='home', todoTab='daily', todoCat='all', calY, calM, calSel=todayS(), da
     diaryMood='🙂', diaryEditId=null, calDiaryEditId=null, calDiaryMood='🙂', modalOpen=false,
     monY, monM, monType='out', editTarget=null, moneyBank='all',
     dyPendingPhotos=[], calDyPendingPhotos=[], photoView=null,
-    evMemoOpen=false, dayTdMemoOpen=false, todoMemoOpen=false;
+    evMemoOpen=false, dayTdMemoOpen=false, todoMemoOpen=false, memoView=null;
 const now=new Date(); calY=now.getFullYear(); calM=now.getMonth(); monY=calY; monM=calM;
 document.getElementById('todayLine').textContent=
   now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'long'})+' · 오늘도 한 걸음씩';
@@ -297,7 +297,8 @@ document.getElementById('nav').addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
-    if(photoView){photoView=null;render();}
+    if(memoView){memoView=null;render();}
+    else if(photoView){photoView=null;render();}
     else if(editTarget){editTarget=null;render();}
     else if(modalOpen){modalOpen=false;render();}
   }
@@ -329,7 +330,25 @@ function render(){
   if(view==='diary')m.innerHTML=diaryHTML();
   if(editTarget)m.insertAdjacentHTML('beforeend',editModalHTML());
   if(photoView)m.insertAdjacentHTML('beforeend',photoModalHTML());
+  if(memoView)m.insertAdjacentHTML('beforeend',memoModalHTML());
 }
+function memoModalHTML(){
+  return `<div class="overlay" onclick="if(event.target===this)closeMemo()">
+    <div class="modal" style="max-width:420px">
+      <h3>📝 메모<button class="icon" style="font-size:17px" onclick="closeMemo()">✕</button></h3>
+      <div class="mt" style="white-space:pre-wrap;font-size:14.5px;line-height:1.6">${esc(memoView)}</div>
+    </div>
+  </div>`;
+}
+window.closeMemo=()=>{memoView=null;render();};
+window.openMemoFor=(kind,scope,id)=>{
+  let text='';
+  if(kind==='todo'){const x=(D.todos[scope]||[]).find(i=>i.id===id); text=x?x.memo:'';}
+  else if(kind==='event'){const x=D.events.find(e=>e.id===id); text=x?x.memo:'';}
+  if(!text)return;
+  memoView=text;
+  render();
+};
 function photoModalHTML(){
   return `<div class="overlay" onclick="closePhoto()" style="cursor:zoom-out">
     <img src="${photoView}" style="max-width:92vw;max-height:88vh;border-radius:14px;box-shadow:0 12px 44px rgba(0,0,0,.45);object-fit:contain">
@@ -660,7 +679,7 @@ function dayEvHTML(){
   </div>
   ${evMemoOpen?'<textarea id="evMemo" class="mt" rows="3" placeholder="자세한 내용을 적어보세요"></textarea>':''}
   <ul class="plain mt">
-    ${evs.length?evs.map(e=>`<li class="item"><span class="txt">${e.time?`<b style="color:var(--accent-deep)">${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span title="${esc(e.memo)}" style="cursor:help;margin-left:5px">📝</span>`:''}</span><button class="icon" onclick="openEditEvent('${e.id}')">✎</button><button class="icon" onclick="delEv('${e.id}')">✕</button></li>`).join(''):'<div class="empty">이 날의 일정이 없습니다.</div>'}
+    ${evs.length?evs.map(e=>`<li class="item"><span class="txt">${e.time?`<b style="color:var(--accent-deep)">${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span onclick="event.stopPropagation();openMemoFor('event',null,'${e.id}')" style="cursor:pointer;margin-left:5px" title="메모 보기">📝</span>`:''}</span><button class="icon" onclick="openEditEvent('${e.id}')">✎</button><button class="icon" onclick="delEv('${e.id}')">✕</button></li>`).join(''):'<div class="empty">이 날의 일정이 없습니다.</div>'}
   </ul>`;
 }
 function dayTdHTML(){
@@ -716,10 +735,10 @@ function dayModalHTML(){
 
       ${!evs.length&&!tds.length?'<div class="empty">이 날의 기록이 없습니다.</div>':`
       <ul class="plain" style="margin-top:8px">
-        ${evs.map(e=>`<li class="item"><span class="txt">${e.time?`<b>${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span title="${esc(e.memo)}" style="cursor:help;margin-left:4px">📝</span>`:''}</span></li>`).join('')}
+        ${evs.map(e=>`<li class="item"><span class="txt">${e.time?`<b>${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span onclick="event.stopPropagation();openMemoFor('event',null,'${e.id}')" style="cursor:pointer;margin-left:4px" title="메모 보기">📝</span>`:''}</span></li>`).join('')}
         ${tds.map(x=>`<li class="item ${x.done?'done':''}">
           <input type="checkbox" class="chk" ${x.done?'checked':''} onchange="tgTodo('daily','${x.id}')">
-          <span class="txt">${esc(x.text)}${x.memo?`<span title="${esc(x.memo)}" style="cursor:help;margin-left:4px">📝</span>`:''}</span>
+          <span class="txt">${esc(x.text)}${x.memo?`<span onclick="event.stopPropagation();openMemoFor('todo','daily','${x.id}')" style="cursor:pointer;margin-left:4px" title="메모 보기">📝</span>`:''}</span>
           <span class="cat">${esc(x.cat||'해야 하는 일')}</span>
         </li>`).join('')}
       </ul>`}
@@ -777,7 +796,7 @@ window.saveCalDy=()=>{
 function todoItem(scope,x){
   return `<li class="item ${x.done?'done':''}">
     <input type="checkbox" class="chk" ${x.done?'checked':''} onchange="tgTodo('${scope}','${x.id}')">
-    <span class="txt">${esc(x.text)}${x.memo?`<span title="${esc(x.memo)}" style="cursor:help;margin-left:4px">📝</span>`:''}${x.date&&scope!=='daily'?`<span style="color:var(--ink-soft);font-size:12px"> · ${x.date}</span>`:''}</span>
+    <span class="txt">${esc(x.text)}${x.memo?`<span onclick="event.stopPropagation();openMemoFor('todo','${scope}','${x.id}')" style="cursor:pointer;margin-left:4px" title="메모 보기">📝</span>`:''}${x.date&&scope!=='daily'?`<span style="color:var(--ink-soft);font-size:12px"> · ${x.date}</span>`:''}</span>
     <span class="cat">${esc(x.cat||'해야 하는 일')}</span>
     <span class="tag p${x.pri}">${PRI[x.pri]}</span>
     <button class="icon" onclick="openEditTodo('${scope}','${x.id}')">✎</button>
