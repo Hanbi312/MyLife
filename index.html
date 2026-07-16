@@ -97,6 +97,11 @@
   table.cal td{height:96px;vertical-align:top;padding:7px 6px;font-size:13px;cursor:pointer;background:#F7F7F7;border-radius:12px;transition:background .15s}
   table.cal td:hover{background:#EBEBEB}
   table.cal td.dim{background:transparent;cursor:default}
+  table.cal td.past{background:#DEDEDE}
+  table.cal td.past:hover{background:#D0D0D0}
+  table.cal td.past .dnum{color:#8D8D8D}
+  table.cal td.past .cell-ev{background:#6E6E6E}
+  table.cal td.past .cell-td{border-color:#B3B3B3;color:#828282}
   table.cal td.today .dnum{background:var(--accent);color:#fff;border-radius:99px;padding:1px 8px}
   table.cal td.sel{outline:2.5px solid var(--accent);background:#fff}
   .dnum{font-weight:600;font-size:13.5px}
@@ -562,7 +567,7 @@ function calHTML(){
         ?`<div class="cell-ev">${esc(it.o.title)}</div>`
         :`<div class="cell-td ${it.o.done?'done':''}">${it.o.done?'✓':'▢'} ${esc(it.o.text)}</div>`).join('');
       const more=items.length>MAX?`<div class="cell-more">+${items.length-MAX}개 더보기</div>`:'';
-      cells+=`<td class="${ds===todayS()?'today ':''}${ds===calSel?'sel':''}" onclick="openDay('${ds}')">
+      cells+=`<td class="${ds<todayS()?'past ':''}${ds===todayS()?'today ':''}${ds===calSel?'sel':''}" onclick="openDay('${ds}')">
         <span class="dnum">${d}</span>${hasDy?' <span style="font-size:11px">📔</span>':''}
         ${shown}${more}</td>`;
       d++;
