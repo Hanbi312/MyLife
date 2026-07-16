@@ -362,6 +362,63 @@ function editModalHTML(){
         <input id="edGDue" type="date" value="${x.due||''}" style="flex:1;min-width:130px" title="목표일">
       </div>
       <textarea id="edGPlan" class="mt" rows="3" placeholder="계획서">${esc(x.plan||'')}</textarea>`;
+  }else if(t.type==='check'){
+    const g=D.growth.find(g=>g.id===t.gid); const c=g&&(g.checks||[]).find(c=>c.id===t.id);
+    if(!c){editTarget=null;return '';}
+    title='체크리스트 항목 수정';
+    body=`<input id="edCheckText" value="${esc(c.text)}" placeholder="체크리스트 항목" class="mt">`;
+  }else if(t.type==='bucket'){
+    const x=D.bucket.find(b=>b.id===t.id); if(!x){editTarget=null;return '';}
+    title='버킷리스트 수정';
+    body=`
+      <input id="edBText" value="${esc(x.text)}" placeholder="하고 싶은 것" class="mt">
+      <div class="row wrapm mt">
+        <input id="edBAge" type="number" min="1" max="120" value="${x.age||''}" placeholder="목표 나이" style="flex:1">
+      </div>`;
+  }else if(t.type==='ledger'){
+    const x=D.ledger.find(l=>l.id===t.id); if(!x){editTarget=null;return '';}
+    const opts=(x.type==='out'?OUT_CATS:IN_CATS).map(c=>`<option ${c===x.cat?'selected':''}>${c}</option>`).join('');
+    title='내역 수정';
+    body=`
+      <div class="row wrapm mt">
+        <input id="edLgDate" type="date" value="${x.date}" style="flex:1;min-width:130px">
+        <select id="edLgCat" style="flex:1;min-width:105px">${opts}</select>
+      </div>
+      <div class="row wrapm mt">
+        <input id="edLgBank" value="${esc(x.bank||'')}" placeholder="은행명" style="flex:1;min-width:100px">
+        <input id="edLgAmt" type="number" min="0" value="${x.amount}" placeholder="금액" style="flex:1;min-width:100px">
+      </div>
+      <input id="edLgMemo" value="${esc(x.memo||'')}" placeholder="내용" class="mt">`;
+  }else if(t.type==='fixed'){
+    const x=D.fixed.find(f=>f.id===t.id); if(!x){editTarget=null;return '';}
+    title='고정지출 수정';
+    body=`
+      <input id="edFxName" value="${esc(x.name)}" placeholder="항목" class="mt">
+      <div class="row wrapm mt">
+        <input id="edFxAmt" type="number" min="0" value="${x.amount}" placeholder="금액" style="flex:1">
+        <input id="edFxDay" type="number" min="1" max="31" value="${x.day||''}" placeholder="결제일" style="flex:1">
+        <input id="edFxBank" value="${esc(x.bank||'')}" placeholder="은행명" style="flex:1">
+      </div>`;
+  }else if(t.type==='loan'){
+    const x=D.loans.find(l=>l.id===t.id); if(!x){editTarget=null;return '';}
+    title='대출 정보 수정';
+    body=`
+      <input id="edLnName" value="${esc(x.name)}" placeholder="대출명" class="mt">
+      <div class="row wrapm mt">
+        <input id="edLnBank" value="${esc(x.bank||'')}" placeholder="은행명" style="flex:1">
+        <input id="edLnTotal" type="number" min="0" value="${x.total}" placeholder="총 대출금" style="flex:1">
+      </div>
+      <div class="hint">이미 상환한 금액(${won(x.paid)})은 유지됩니다.</div>`;
+  }else if(t.type==='saving'){
+    const x=D.savings.find(s=>s.id===t.id); if(!x){editTarget=null;return '';}
+    title='저금 정보 수정';
+    body=`
+      <input id="edSvName" value="${esc(x.name)}" placeholder="저금 이름" class="mt">
+      <div class="row wrapm mt">
+        <input id="edSvBank" value="${esc(x.bank||'')}" placeholder="은행명" style="flex:1">
+        <input id="edSvGoal" type="number" min="0" value="${x.goal||''}" placeholder="목표 금액" style="flex:1">
+      </div>
+      <div class="hint">이미 모은 금액(${won(x.saved)})은 유지됩니다.</div>`;
   }
   return `
   <div class="overlay" onclick="if(event.target===this)closeEdit()">
@@ -379,6 +436,12 @@ window.closeEdit=()=>{editTarget=null;render();};
 window.openEditTodo=(scope,id)=>{editTarget={type:'todo',scope,id};render();};
 window.openEditEvent=id=>{editTarget={type:'event',id};render();};
 window.openEditGrowth=id=>{editTarget={type:'growth',id};render();};
+window.openEditCheck=(gid,id)=>{editTarget={type:'check',gid,id};render();};
+window.openEditBucket=id=>{editTarget={type:'bucket',id};render();};
+window.openEditLg=id=>{editTarget={type:'ledger',id};render();};
+window.openEditFix=id=>{editTarget={type:'fixed',id};render();};
+window.openEditLoan=id=>{editTarget={type:'loan',id};render();};
+window.openEditSav=id=>{editTarget={type:'saving',id};render();};
 window.saveEdit=()=>{
   const t=editTarget; if(!t)return;
   if(t.type==='todo'){
@@ -400,6 +463,45 @@ window.saveEdit=()=>{
     x.title=txt;
     x.due=document.getElementById('edGDue').value;
     x.plan=document.getElementById('edGPlan').value.trim();
+  }else if(t.type==='check'){
+    const g=D.growth.find(g=>g.id===t.gid); const c=g&&(g.checks||[]).find(c=>c.id===t.id);
+    if(!c)return;
+    const txt=document.getElementById('edCheckText').value.trim(); if(!txt)return;
+    c.text=txt;
+  }else if(t.type==='bucket'){
+    const x=D.bucket.find(b=>b.id===t.id); if(!x)return;
+    const txt=document.getElementById('edBText').value.trim(); if(!txt)return;
+    x.text=txt;
+    const a=document.getElementById('edBAge').value;
+    x.age=a?+a:null;
+  }else if(t.type==='ledger'){
+    const x=D.ledger.find(l=>l.id===t.id); if(!x)return;
+    const amt=+document.getElementById('edLgAmt').value; if(!amt||amt<=0)return;
+    x.date=document.getElementById('edLgDate').value||x.date;
+    x.cat=document.getElementById('edLgCat').value;
+    x.bank=document.getElementById('edLgBank').value.trim();
+    x.amount=amt;
+    x.memo=document.getElementById('edLgMemo').value.trim();
+  }else if(t.type==='fixed'){
+    const x=D.fixed.find(f=>f.id===t.id); if(!x)return;
+    const nm=document.getElementById('edFxName').value.trim(); if(!nm)return;
+    const amt=+document.getElementById('edFxAmt').value; if(!amt||amt<=0)return;
+    x.name=nm; x.amount=amt;
+    const d=+document.getElementById('edFxDay').value||null;
+    x.day=d&&d>=1&&d<=31?d:null;
+    x.bank=document.getElementById('edFxBank').value.trim();
+  }else if(t.type==='loan'){
+    const x=D.loans.find(l=>l.id===t.id); if(!x)return;
+    const nm=document.getElementById('edLnName').value.trim(); if(!nm)return;
+    const tot=+document.getElementById('edLnTotal').value; if(!tot||tot<=0)return;
+    x.name=nm; x.total=tot;
+    x.bank=document.getElementById('edLnBank').value.trim();
+  }else if(t.type==='saving'){
+    const x=D.savings.find(s=>s.id===t.id); if(!x)return;
+    const nm=document.getElementById('edSvName').value.trim(); if(!nm)return;
+    x.name=nm;
+    x.goal=+document.getElementById('edSvGoal').value||0;
+    x.bank=document.getElementById('edSvBank').value.trim();
   }
   editTarget=null;
   save();render();
@@ -686,6 +788,7 @@ function growthHTML(){
           ${checks.map(c=>`<li class="item ${c.done?'done':''}" style="padding:6px 2px">
             <input type="checkbox" class="chk" ${c.done?'checked':''} onchange="tgCheck('${g.id}','${c.id}')">
             <span class="txt" style="font-size:13.5px">${esc(c.text)}</span>
+            <button class="icon" onclick="openEditCheck('${g.id}','${c.id}')">✎</button>
             <button class="icon" onclick="delCheck('${g.id}','${c.id}')">✕</button></li>`).join('')}
         </ul>
         <div class="row mt">
@@ -743,6 +846,7 @@ function bucketHTML(){
         <span class="tl-age">${b.age?b.age+'살':'언젠가'}</span>
         <div class="row"><input type="checkbox" class="chk" ${b.done?'checked':''} onchange="tgB('${b.id}')">
         <span class="tl-txt" style="font-size:14.5px">${esc(b.text)}</span>
+        <button class="icon" onclick="openEditBucket('${b.id}')">✎</button>
         <button class="icon" onclick="delB('${b.id}')">✕</button></div>
       </div>`).join('')}
     </div>`:'<div class="empty">버킷리스트를 추가하면 나이 순 인생 타임라인으로 그려집니다.</div>'}
@@ -800,6 +904,7 @@ function moneyHTML(){
       </div>
       <input id="lgDate" type="date" value="${todayS()}" style="flex:1;min-width:130px">
       <select id="lgCat" style="flex:1;min-width:105px">${catOpts}</select>
+      <input id="lgBank" placeholder="은행명 (선택)" style="flex:1;min-width:100px">
       <input id="lgAmt" type="number" min="0" placeholder="금액" style="flex:1;min-width:100px" onkeydown="if(event.key==='Enter')addLg()">
       <input id="lgMemo" placeholder="내용 (선택)" style="flex:2;min-width:120px" onkeydown="if(event.key==='Enter')addLg()">
       <button class="btn" onclick="addLg()">추가</button>
@@ -813,8 +918,9 @@ function moneyHTML(){
         <div style="font-size:12px;font-weight:700;color:var(--ink-soft);margin-top:12px;border-bottom:1.5px solid #111;padding-bottom:4px">${Number(d.slice(5,7))}월 ${Number(d.slice(8))}일</div>
         <ul class="plain">
           ${byDate[d].map(l=>`<li class="item">
-            <span class="txt"><span style="font-size:11.5px;color:var(--ink-soft);border:1px solid var(--line);border-radius:99px;padding:1px 7px;margin-right:6px">${esc(l.cat)}</span>${esc(l.memo||'')}</span>
+            <span class="txt"><span style="font-size:11.5px;color:var(--ink-soft);border:1px solid var(--line);border-radius:99px;padding:1px 7px;margin-right:6px">${esc(l.cat)}</span>${l.bank?`<span style="font-size:11.5px;color:var(--ink-soft);margin-right:6px">🏦 ${esc(l.bank)}</span>`:''}${esc(l.memo||'')}</span>
             <b style="font-size:14px;${l.type==='in'?'':'color:var(--ink-soft)'}">${l.type==='in'?'+':'−'}${won(l.amount)}</b>
+            <button class="icon" onclick="openEditLg('${l.id}')">✎</button>
             <button class="icon" onclick="delLg('${l.id}')">✕</button></li>`).join('')}
         </ul>`).join(''):'<div class="empty">이번 달 내역이 없습니다.</div>'}
     </div>
@@ -834,13 +940,15 @@ function moneyHTML(){
       <input id="fxName" placeholder="항목 (예: 월세, 통신비, 구독료)" style="flex:2;min-width:140px" onkeydown="if(event.key==='Enter')addFix()">
       <input id="fxAmt" type="number" min="0" placeholder="금액" style="flex:1;min-width:100px">
       <input id="fxDay" type="number" min="1" max="31" placeholder="결제일" style="flex:1;min-width:80px">
+      <input id="fxBank" placeholder="은행명 (선택)" style="flex:1;min-width:100px">
       <button class="btn" onclick="addFix()">추가</button>
     </div>
     <ul class="plain mt">
       ${D.fixed.length?D.fixed.slice().sort((a,b)=>(a.day||99)-(b.day||99)).map(f=>`<li class="item">
-        <span class="txt">${f.day?`<b style="border:1px solid #111;border-radius:99px;padding:0 7px;font-size:11.5px;margin-right:6px">매달 ${f.day}일</b>`:''}${esc(f.name)}</span>
+        <span class="txt">${f.day?`<b style="border:1px solid #111;border-radius:99px;padding:0 7px;font-size:11.5px;margin-right:6px">매달 ${f.day}일</b>`:''}${esc(f.name)}${f.bank?`<span style="font-size:11.5px;color:var(--ink-soft);margin-left:6px">🏦 ${esc(f.bank)}</span>`:''}</span>
         <b style="font-size:14px">${won(f.amount)}</b>
         <button class="btn ghost" style="padding:4px 10px;font-size:12px" onclick="recFix('${f.id}')" title="이번 달 내역에 기록">기록</button>
+        <button class="icon" onclick="openEditFix('${f.id}')">✎</button>
         <button class="icon" onclick="delFix('${f.id}')">✕</button></li>`).join(''):'<div class="empty">월세, 통신비, 구독료 같은 고정지출을 등록해 두세요.</div>'}
     </ul>
     ${D.fixed.length?'<div class="hint">"기록" 버튼을 누르면 해당 항목이 보고 있는 달의 지출 내역에 추가됩니다.</div>':''}
@@ -851,6 +959,7 @@ function moneyHTML(){
       <h2>대출 상환</h2>
       <div class="row wrapm">
         <input id="lnName" placeholder="대출명 (예: 학자금대출)" style="flex:2;min-width:130px" onkeydown="if(event.key==='Enter')addLoan()">
+        <input id="lnBank" placeholder="은행명 (선택)" style="flex:1;min-width:100px">
         <input id="lnTotal" type="number" min="0" placeholder="총 대출금" style="flex:1;min-width:110px">
         <button class="btn" onclick="addLoan()">추가</button>
       </div>
@@ -860,8 +969,11 @@ function moneyHTML(){
         return `
         <div class="mt" style="border:1.5px solid var(--line);border-radius:12px;padding:13px">
           <div class="row" style="justify-content:space-between">
-            <b style="font-size:14.5px">${esc(l.name)} ${left===0?'<span style="font-size:11.5px;background:#111;color:#fff;border-radius:99px;padding:1px 8px">상환 완료 🎉</span>':''}</b>
-            <button class="icon" onclick="delLoan('${l.id}')">✕</button>
+            <b style="font-size:14.5px">${esc(l.name)}${l.bank?` <span style="font-size:11.5px;color:var(--ink-soft);font-weight:400">🏦 ${esc(l.bank)}</span>`:''} ${left===0?'<span style="font-size:11.5px;background:#111;color:#fff;border-radius:99px;padding:1px 8px">상환 완료 🎉</span>':''}</b>
+            <span>
+              <button class="icon" onclick="openEditLoan('${l.id}')">✎</button>
+              <button class="icon" onclick="delLoan('${l.id}')">✕</button>
+            </span>
           </div>
           <div class="row" style="justify-content:space-between;font-size:12.5px;color:var(--ink-soft);margin-top:4px">
             <span>상환 ${won(l.paid)} / ${won(l.total)}</span><b style="color:#111">남은 금액 ${won(left)}</b>
@@ -877,6 +989,7 @@ function moneyHTML(){
       <h2>저금</h2>
       <div class="row wrapm">
         <input id="svName" placeholder="저금 이름 (예: 비상금, 여행 자금)" style="flex:2;min-width:130px" onkeydown="if(event.key==='Enter')addSav()">
+        <input id="svBank" placeholder="은행명 (선택)" style="flex:1;min-width:100px">
         <input id="svGoal" type="number" min="0" placeholder="목표 금액" style="flex:1;min-width:110px">
         <button class="btn" onclick="addSav()">추가</button>
       </div>
@@ -885,8 +998,11 @@ function moneyHTML(){
         return `
         <div class="mt" style="border:1.5px solid var(--line);border-radius:12px;padding:13px">
           <div class="row" style="justify-content:space-between">
-            <b style="font-size:14.5px">${esc(s.name)} ${s.goal&&s.saved>=s.goal?'<span style="font-size:11.5px;background:#111;color:#fff;border-radius:99px;padding:1px 8px">목표 달성 🎉</span>':''}</b>
-            <button class="icon" onclick="delSav('${s.id}')">✕</button>
+            <b style="font-size:14.5px">${esc(s.name)}${s.bank?` <span style="font-size:11.5px;color:var(--ink-soft);font-weight:400">🏦 ${esc(s.bank)}</span>`:''} ${s.goal&&s.saved>=s.goal?'<span style="font-size:11.5px;background:#111;color:#fff;border-radius:99px;padding:1px 8px">목표 달성 🎉</span>':''}</b>
+            <span>
+              <button class="icon" onclick="openEditSav('${s.id}')">✎</button>
+              <button class="icon" onclick="delSav('${s.id}')">✕</button>
+            </span>
           </div>
           <div class="row" style="justify-content:space-between;font-size:12.5px;color:var(--ink-soft);margin-top:4px">
             <span>모은 돈 ${won(s.saved)}${s.goal?` / ${won(s.goal)}`:''}</span>${s.goal?`<b style="color:#111">${p}%</b>`:''}
@@ -909,6 +1025,7 @@ window.addLg=()=>{
     date:document.getElementById('lgDate').value||todayS(),
     type:monType,
     cat:document.getElementById('lgCat').value,
+    bank:document.getElementById('lgBank').value.trim(),
     amount:amt,
     memo:document.getElementById('lgMemo').value.trim()
   });
@@ -921,7 +1038,7 @@ window.addFix=()=>{
   const a=+document.getElementById('fxAmt').value;
   if(!n||!a||a<=0)return;
   const d=+document.getElementById('fxDay').value||null;
-  D.fixed.push({id:uid(),name:n,amount:a,day:d&&d>=1&&d<=31?d:null});
+  D.fixed.push({id:uid(),name:n,amount:a,day:d&&d>=1&&d<=31?d:null,bank:document.getElementById('fxBank').value.trim()});
   save();render();
 };
 window.delFix=id=>{D.fixed=D.fixed.filter(f=>f.id!==id);save();render();};
@@ -929,7 +1046,7 @@ window.recFix=id=>{
   const f=D.fixed.find(x=>x.id===id); if(!f)return;
   const day=Math.min(f.day||1,new Date(monY,monM+1,0).getDate());
   const date=`${monY}-${String(monM+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  D.ledger.push({id:uid(),date,type:'out',cat:'고정지출',amount:f.amount,memo:f.name});
+  D.ledger.push({id:uid(),date,type:'out',cat:'고정지출',bank:f.bank||'',amount:f.amount,memo:f.name});
   save();render();
 };
 /* 대출 */
@@ -937,7 +1054,7 @@ window.addLoan=()=>{
   const n=document.getElementById('lnName').value.trim();
   const t=+document.getElementById('lnTotal').value;
   if(!n||!t||t<=0)return;
-  D.loans.push({id:uid(),name:n,total:t,paid:0});
+  D.loans.push({id:uid(),name:n,total:t,paid:0,bank:document.getElementById('lnBank').value.trim()});
   save();render();
 };
 window.payLoan=id=>{
@@ -951,7 +1068,7 @@ window.delLoan=id=>{if(confirm('이 대출 항목을 삭제할까요?')){D.loans
 window.addSav=()=>{
   const n=document.getElementById('svName').value.trim(); if(!n)return;
   const g=+document.getElementById('svGoal').value||0;
-  D.savings.push({id:uid(),name:n,goal:g,saved:0});
+  D.savings.push({id:uid(),name:n,goal:g,saved:0,bank:document.getElementById('svBank').value.trim()});
   save();render();
 };
 window.depSav=id=>{
