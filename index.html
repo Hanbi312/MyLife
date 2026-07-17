@@ -284,7 +284,8 @@ let view='home', todoTab='daily', todoCat='all', calY, calM, calSel=todayS(), da
     diaryMood='🙂', diaryEditId=null, calDiaryEditId=null, calDiaryMood='🙂', modalOpen=false,
     monY, monM, monType='out', editTarget=null, moneyBank='all',
     dyPendingPhotos=[], calDyPendingPhotos=[], photoView=null,
-    evMemoOpen=false, dayTdMemoOpen=false, todoMemoOpen=false, memoView=null, evColorPick='#111111';
+    evMemoOpen=false, dayTdMemoOpen=false, todoMemoOpen=false, memoView=null, evColorPick='#111111',
+    checkMemoOpen={};
 const now=new Date(); calY=now.getFullYear(); calM=now.getMonth(); monY=calY; monM=calM;
 document.getElementById('todayLine').textContent=
   now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'long'})+' · 오늘도 한 걸음씩';
@@ -345,6 +346,7 @@ window.openMemoFor=(kind,scope,id)=>{
   let text='';
   if(kind==='todo'){const x=(D.todos[scope]||[]).find(i=>i.id===id); text=x?x.memo:'';}
   else if(kind==='event'){const x=D.events.find(e=>e.id===id); text=x?x.memo:'';}
+  else if(kind==='check'){const g=D.growth.find(g=>g.id===scope); const c=g&&(g.checks||[]).find(c=>c.id===id); text=c?c.memo:'';}
   if(!text)return;
   memoView=text;
   render();
@@ -438,7 +440,8 @@ function editModalHTML(){
     const g=D.growth.find(g=>g.id===t.gid); const c=g&&(g.checks||[]).find(c=>c.id===t.id);
     if(!c){editTarget=null;return '';}
     title='체크리스트 항목 수정';
-    body=`<input id="edCheckText" value="${esc(c.text)}" placeholder="체크리스트 항목" class="mt">`;
+    body=`<input id="edCheckText" value="${esc(c.text)}" placeholder="체크리스트 항목" class="mt">
+      <textarea id="edCheckMemo" class="mt" rows="3" placeholder="메모 (자세한 내용)">${esc(c.memo||'')}</textarea>`;
   }else if(t.type==='bucket'){
     const x=D.bucket.find(b=>b.id===t.id); if(!x){editTarget=null;return '';}
     title='버킷리스트 수정';
@@ -549,6 +552,7 @@ window.saveEdit=()=>{
     if(!c)return;
     const txt=document.getElementById('edCheckText').value.trim(); if(!txt)return;
     c.text=txt;
+    c.memo=document.getElementById('edCheckMemo').value.trim();
   }else if(t.type==='bucket'){
     const x=D.bucket.find(b=>b.id===t.id); if(!x)return;
     const txt=document.getElementById('edBText').value.trim(); if(!txt)return;
@@ -923,14 +927,16 @@ function growthHTML(){
         <ul class="plain mt">
           ${checks.map(c=>`<li class="item ${c.done?'done':''}" style="padding:6px 2px">
             <input type="checkbox" class="chk" ${c.done?'checked':''} onchange="tgCheck('${g.id}','${c.id}')">
-            <span class="txt" style="font-size:13.5px">${esc(c.text)}</span>
+            <span class="txt" style="font-size:13.5px">${esc(c.text)}${c.memo?`<span onclick="event.stopPropagation();openMemoFor('check','${g.id}','${c.id}')" style="cursor:pointer;margin-left:4px" title="메모 보기">📝</span>`:''}</span>
             <button class="icon" onclick="openEditCheck('${g.id}','${c.id}')">✎</button>
             <button class="icon" onclick="delCheck('${g.id}','${c.id}')">✕</button></li>`).join('')}
         </ul>
         <div class="row mt">
-          <input id="ck-${g.id}" placeholder="체크리스트 항목 추가 (예: 1주차 강의 듣기)" style="flex:1" onkeydown="if(event.key==='Enter')addCheck('${g.id}')">
+          <input id="ck-${g.id}" placeholder="체크리스트 항목 추가 (예: 1주차 강의 듣기)" style="flex:1" onkeydown="if(event.key==='Enter'&&!checkMemoOpen['${g.id}'])addCheck('${g.id}')">
+          <button class="btn ghost" onclick="checkMemoOpen['${g.id}']=!checkMemoOpen['${g.id}'];render()">${checkMemoOpen[g.id]?'📝 메모 닫기':'📝 메모 추가'}</button>
           <button class="btn ghost" onclick="addCheck('${g.id}')">＋</button>
         </div>
+        ${checkMemoOpen[g.id]?`<textarea id="ckMemo-${g.id}" class="mt" rows="3" placeholder="자세한 내용을 적어보세요"></textarea>`:''}
         ${auto?'<div class="hint">체크리스트를 완료하면 진행도가 자동으로 올라가요.</div>':'<div class="hint">체크리스트 항목을 추가하면 진행도가 자동 계산으로 바뀝니다.</div>'}
       </div>`;}).join(''):'<div class="card"><div class="empty">첫 자기계발 목표를 등록해 보세요. 목표마다 계획서와 체크리스트를 붙일 수 있어요.</div></div>'}
   </div>`;
@@ -948,7 +954,9 @@ window.addCheck=gid=>{
   const t=inp.value.trim(); if(!t)return;
   const g=D.growth.find(x=>x.id===gid); if(!g)return;
   if(!Array.isArray(g.checks))g.checks=[];
-  g.checks.push({id:uid(),text:t,done:false});
+  const memoEl=document.getElementById('ckMemo-'+gid);
+  g.checks.push({id:uid(),text:t,done:false,memo:memoEl?memoEl.value.trim():''});
+  checkMemoOpen[gid]=false;
   save();render();
   const again=document.getElementById('ck-'+gid); if(again)again.focus();
 };
