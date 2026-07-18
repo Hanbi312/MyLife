@@ -1018,6 +1018,7 @@ function memoToolbarHTML(id){
     <button type="button" style="font-weight:800" onmousedown="event.preventDefault()" onclick="memoCmd('${id}','bold')" title="굵게">B</button>
     <button type="button" style="font-style:italic" onmousedown="event.preventDefault()" onclick="memoCmd('${id}','italic')" title="기울임">I</button>
     <button type="button" style="text-decoration:underline" onmousedown="event.preventDefault()" onclick="memoCmd('${id}','underline')" title="밑줄">U</button>
+    <button type="button" style="text-decoration:line-through" onmousedown="event.preventDefault()" onclick="memoCmd('${id}','strikeThrough')" title="취소선">S</button>
     <span class="sep"></span>
     ${MEMO_COLORS.map(c=>`<button type="button" class="swatch" style="background:${c}" onmousedown="event.preventDefault()" onclick="memoCmd('${id}','foreColor','${c}')" title="글씨 색"></button>`).join('')}
     <span class="sep"></span>
