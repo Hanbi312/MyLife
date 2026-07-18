@@ -147,6 +147,15 @@
   .chips button.on.task{background:var(--accent);color:#fff;border-color:var(--accent)}
   .chips button.on.growth{background:var(--teal);color:#fff;border-color:var(--teal)}
   .hint{font-size:12px;color:var(--ink-soft);margin-top:9px}
+  /* 리치 메모 편집기 */
+  .memo-edit{border:1.5px solid var(--line);border-radius:10px;padding:9px 12px;min-height:76px;font-size:14px;background:#FCFBFE;outline:none;line-height:1.55}
+  .memo-edit:focus{border-color:#111}
+  .memo-edit:empty:before{content:attr(data-placeholder);color:var(--ink-soft)}
+  .memo-toolbar{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:8px}
+  .memo-toolbar button{border:1.5px solid var(--line);background:#fff;border-radius:7px;width:26px;height:26px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;color:#111}
+  .memo-toolbar button:hover{background:var(--bg)}
+  .memo-toolbar .swatch{border-radius:99px;width:20px;height:20px;border:1.5px solid var(--line)}
+  .memo-toolbar .sep{width:1px;height:18px;background:var(--line);margin:0 2px}
   .save-note{position:fixed;bottom:18px;right:18px;background:var(--ink);color:#fff;font-size:13px;padding:9px 15px;border-radius:99px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9}
   .save-note.show{opacity:.92}
   .mt{margin-top:12px}
@@ -337,7 +346,7 @@ function memoModalHTML(){
   return `<div class="overlay" onclick="if(event.target===this)closeMemo()">
     <div class="modal" style="max-width:420px">
       <h3>📝 메모<button class="icon" style="font-size:17px" onclick="closeMemo()">✕</button></h3>
-      <div class="mt" style="white-space:pre-wrap;font-size:14.5px;line-height:1.6">${esc(memoView)}</div>
+      <div class="mt" style="font-size:14.5px;line-height:1.6">${memoView}</div>
     </div>
   </div>`;
 }
@@ -415,7 +424,7 @@ function editModalHTML(){
         </select>
         ${dateFieldFor(t.scope,x.date)}
       </div>
-      <textarea id="edMemo" class="mt" rows="3" placeholder="메모 (자세한 내용)">${esc(x.memo||'')}</textarea>`;
+      ${memoEditableHTML('edMemo',x.memo||'','메모 (자세한 내용)')}`;
   }else if(t.type==='event'){
     const x=D.events.find(e=>e.id===t.id); if(!x){editTarget=null;return '';}
     title='일정 수정';
@@ -425,7 +434,7 @@ function editModalHTML(){
         <input id="edDate2" type="date" value="${x.date}" style="flex:1;min-width:130px">
         <input id="edTime" type="time" value="${x.time||''}" style="flex:1;min-width:110px">
       </div>
-      <textarea id="edEvMemo" class="mt" rows="3" placeholder="메모 (자세한 내용)">${esc(x.memo||'')}</textarea>
+      ${memoEditableHTML('edEvMemo',x.memo||'','메모 (자세한 내용)')}
       ${colorSwatchHTML(t.color,'pickEditEvColor')}`;
   }else if(t.type==='growth'){
     const x=D.growth.find(g=>g.id===t.id); if(!x){editTarget=null;return '';}
@@ -441,7 +450,7 @@ function editModalHTML(){
     if(!c){editTarget=null;return '';}
     title='체크리스트 항목 수정';
     body=`<input id="edCheckText" value="${esc(c.text)}" placeholder="체크리스트 항목" class="mt">
-      <textarea id="edCheckMemo" class="mt" rows="3" placeholder="메모 (자세한 내용)">${esc(c.memo||'')}</textarea>`;
+      ${memoEditableHTML('edCheckMemo',c.memo||'','메모 (자세한 내용)')}`;
   }else if(t.type==='bucket'){
     const x=D.bucket.find(b=>b.id===t.id); if(!x){editTarget=null;return '';}
     title='버킷리스트 수정';
@@ -532,14 +541,14 @@ window.saveEdit=()=>{
     x.cat=document.getElementById('edCat').value;
     x.pri=+document.getElementById('edPri').value;
     x.date=String(document.getElementById('edDate').value);
-    x.memo=document.getElementById('edMemo').value.trim();
+    x.memo=getMemoValue('edMemo');
   }else if(t.type==='event'){
     const x=D.events.find(e=>e.id===t.id); if(!x)return;
     const txt=document.getElementById('edTitle').value.trim(); if(!txt)return;
     x.title=txt;
     x.date=document.getElementById('edDate2').value||x.date;
     x.time=document.getElementById('edTime').value;
-    x.memo=document.getElementById('edEvMemo').value.trim();
+    x.memo=getMemoValue('edEvMemo');
     x.color=t.color||'#111111';
   }else if(t.type==='growth'){
     const x=D.growth.find(g=>g.id===t.id); if(!x)return;
@@ -552,7 +561,7 @@ window.saveEdit=()=>{
     if(!c)return;
     const txt=document.getElementById('edCheckText').value.trim(); if(!txt)return;
     c.text=txt;
-    c.memo=document.getElementById('edCheckMemo').value.trim();
+    c.memo=getMemoValue('edCheckMemo');
   }else if(t.type==='bucket'){
     const x=D.bucket.find(b=>b.id===t.id); if(!x)return;
     const txt=document.getElementById('edBText').value.trim(); if(!txt)return;
@@ -693,7 +702,7 @@ function dayEvHTML(){
     <button class="btn" onclick="addEv()">추가</button>
   </div>
   ${colorSwatchHTML(evColorPick,'pickEvColor')}
-  ${evMemoOpen?'<textarea id="evMemo" class="mt" rows="3" placeholder="자세한 내용을 적어보세요"></textarea>':''}
+  ${evMemoOpen?memoEditableHTML('evMemo','','자세한 내용을 적어보세요'):''}
   <ul class="plain mt">
     ${evs.length?evs.map(e=>`<li class="item"><span class="txt"><span style="display:inline-block;width:9px;height:9px;border-radius:99px;background:${e.color||'#111111'};margin-right:6px"></span>${e.time?`<b style="color:var(--accent-deep)">${e.time}</b> `:''}${esc(e.title)}${e.memo?`<span onclick="event.stopPropagation();openMemoFor('event',null,'${e.id}')" style="cursor:pointer;margin-left:5px" title="메모 보기">📝</span>`:''}</span><button class="icon" onclick="openEditEvent('${e.id}')">✎</button><button class="icon" onclick="delEv('${e.id}')">✕</button></li>`).join(''):'<div class="empty">이 날의 일정이 없습니다.</div>'}
   </ul>`;
@@ -710,7 +719,7 @@ function dayTdHTML(){
     <button class="btn ghost" onclick="dayTdMemoOpen=!dayTdMemoOpen;render()">${dayTdMemoOpen?'📝 메모 닫기':'📝 메모 추가'}</button>
     <button class="btn" onclick="addDayTd()">추가</button>
   </div>
-  ${dayTdMemoOpen?'<textarea id="dTdMemo" class="mt" rows="3" placeholder="자세한 내용을 적어보세요"></textarea>':''}
+  ${dayTdMemoOpen?memoEditableHTML('dTdMemo','','자세한 내용을 적어보세요'):''}
   ${list.length?`<div class="bar mt"><div style="width:${Math.round(doneN/list.length*100)}%"></div></div>`:''}
   <ul class="plain mt">
     ${list.length?list.map(todoItem.bind(null,'daily')).join(''):'<div class="empty">이 날의 할 일이 없습니다.</div>'}
@@ -769,16 +778,14 @@ window.selDay=ds=>{calSel=ds;calDiaryEditId=null;calDyPendingPhotos=[];render();
 window.setDayTab=t=>{dayTab=t;render();};
 window.addEv=()=>{
   const t=document.getElementById('evTitle').value.trim(); if(!t)return;
-  const memoEl=document.getElementById('evMemo');
-  D.events.push({id:uid(),date:calSel,title:t,time:document.getElementById('evTime').value,memo:memoEl?memoEl.value.trim():'',color:evColorPick});
+  D.events.push({id:uid(),date:calSel,title:t,time:document.getElementById('evTime').value,memo:getMemoValue('evMemo'),color:evColorPick});
   evMemoOpen=false;
   save();render();
 };
 window.delEv=id=>{D.events=D.events.filter(e=>e.id!==id);save();render();};
 window.addDayTd=()=>{
   const t=document.getElementById('dTdText').value.trim(); if(!t)return;
-  const memoEl=document.getElementById('dTdMemo');
-  D.todos.daily.push({id:uid(),text:t,pri:+document.getElementById('dTdPri').value,cat:document.getElementById('dTdCat').value,done:false,date:calSel,memo:memoEl?memoEl.value.trim():''});
+  D.todos.daily.push({id:uid(),text:t,pri:+document.getElementById('dTdPri').value,cat:document.getElementById('dTdCat').value,done:false,date:calSel,memo:getMemoValue('dTdMemo')});
   dayTdMemoOpen=false;
   save();render();
 };
@@ -855,7 +862,7 @@ function todoHTML(){
       <button class="btn ghost" onclick="todoMemoOpen=!todoMemoOpen;render()">${todoMemoOpen?'📝 메모 닫기':'📝 메모 추가'}</button>
       <button class="btn" onclick="addTodo()">추가</button>
     </div>
-    ${todoMemoOpen?'<textarea id="tdMemo" class="mt" rows="3" placeholder="자세한 내용을 적어보세요"></textarea>':''}
+    ${todoMemoOpen?memoEditableHTML('tdMemo','','자세한 내용을 적어보세요'):''}
     ${list.length?`<div class="bar mt"><div style="width:${Math.round(doneN/list.length*100)}%"></div></div>`:''}
     <ul class="plain mt">
       ${list.length?list.map(todoItem.bind(null,todoTab)).join(''):'<div class="empty">이 분류에 등록된 할 일이 없습니다.</div>'}
@@ -883,8 +890,7 @@ window.delCategory=name=>{
 };
 window.addTodo=()=>{
   const t=document.getElementById('tdText').value.trim(); if(!t)return;
-  const memoEl=document.getElementById('tdMemo');
-  D.todos[todoTab].push({id:uid(),text:t,pri:+document.getElementById('tdPri').value,cat:document.getElementById('tdCat').value,done:false,date:String(document.getElementById('tdDate').value),memo:memoEl?memoEl.value.trim():''});
+  D.todos[todoTab].push({id:uid(),text:t,pri:+document.getElementById('tdPri').value,cat:document.getElementById('tdCat').value,done:false,date:String(document.getElementById('tdDate').value),memo:getMemoValue('tdMemo')});
   todoMemoOpen=false;
   save();render();
 };
@@ -936,7 +942,7 @@ function growthHTML(){
           <button class="btn ghost" onclick="checkMemoOpen['${g.id}']=!checkMemoOpen['${g.id}'];render()">${checkMemoOpen[g.id]?'📝 메모 닫기':'📝 메모 추가'}</button>
           <button class="btn ghost" onclick="addCheck('${g.id}')">＋</button>
         </div>
-        ${checkMemoOpen[g.id]?`<textarea id="ckMemo-${g.id}" class="mt" rows="3" placeholder="자세한 내용을 적어보세요"></textarea>`:''}
+        ${checkMemoOpen[g.id]?memoEditableHTML('ckMemo-'+g.id,'','자세한 내용을 적어보세요'):''}
         ${auto?'<div class="hint">체크리스트를 완료하면 진행도가 자동으로 올라가요.</div>':'<div class="hint">체크리스트 항목을 추가하면 진행도가 자동 계산으로 바뀝니다.</div>'}
       </div>`;}).join(''):'<div class="card"><div class="empty">첫 자기계발 목표를 등록해 보세요. 목표마다 계획서와 체크리스트를 붙일 수 있어요.</div></div>'}
   </div>`;
@@ -954,8 +960,7 @@ window.addCheck=gid=>{
   const t=inp.value.trim(); if(!t)return;
   const g=D.growth.find(x=>x.id===gid); if(!g)return;
   if(!Array.isArray(g.checks))g.checks=[];
-  const memoEl=document.getElementById('ckMemo-'+gid);
-  g.checks.push({id:uid(),text:t,done:false,memo:memoEl?memoEl.value.trim():''});
+  g.checks.push({id:uid(),text:t,done:false,memo:getMemoValue('ckMemo-'+gid)});
   checkMemoOpen[gid]=false;
   save();render();
   const again=document.getElementById('ck-'+gid); if(again)again.focus();
@@ -1006,7 +1011,34 @@ window.tgB=id=>{const b=D.bucket.find(x=>x.id===id);if(b){b.done=!b.done;save();
 window.delB=id=>{D.bucket=D.bucket.filter(x=>x.id!==id);save();render();};
 
 /* ================= 가계부 ================= */
-/* ================= 일정 색상 ================= */
+/* ================= 리치 메모 편집기 ================= */
+const MEMO_COLORS=['#111111','#E4572E','#3B82C4','#3E7C59','#8B5CF6','#D2688F'];
+function memoToolbarHTML(id){
+  return `<div class="memo-toolbar">
+    <button type="button" style="font-weight:800" onmousedown="event.preventDefault()" onclick="memoCmd('${id}','bold')" title="굵게">B</button>
+    <button type="button" style="font-style:italic" onmousedown="event.preventDefault()" onclick="memoCmd('${id}','italic')" title="기울임">I</button>
+    <button type="button" style="text-decoration:underline" onmousedown="event.preventDefault()" onclick="memoCmd('${id}','underline')" title="밑줄">U</button>
+    <span class="sep"></span>
+    ${MEMO_COLORS.map(c=>`<button type="button" class="swatch" style="background:${c}" onmousedown="event.preventDefault()" onclick="memoCmd('${id}','foreColor','${c}')" title="글씨 색"></button>`).join('')}
+    <span class="sep"></span>
+    <button type="button" style="font-size:11px" onmousedown="event.preventDefault()" onclick="memoCmd('${id}','removeFormat')" title="서식 지우기">✕</button>
+  </div>`;
+}
+function memoEditableHTML(id,valueHTML,placeholder){
+  return `${memoToolbarHTML(id)}
+  <div id="${id}" class="memo-edit mt" contenteditable="true" data-placeholder="${esc(placeholder||'')}">${valueHTML||''}</div>`;
+}
+window.memoCmd=(id,cmd,val)=>{
+  const el=document.getElementById(id); if(!el)return;
+  el.focus();
+  document.execCommand(cmd,false,val||null);
+};
+function getMemoValue(id){
+  const el=document.getElementById(id); if(!el)return '';
+  const html=el.innerHTML.trim();
+  if(!html||html==='<br>'||html==='<div><br></div>')return '';
+  return html;
+}
 const EVENT_COLORS=['#111111','#E4572E','#E8A33D','#3E7C59','#3B82C4','#8B5CF6','#D2688F','#0E9488'];
 const OUT_CATS=['식비','카페/간식','교통','쇼핑','주거/통신','문화/여가','의료/건강','기타'];
 
