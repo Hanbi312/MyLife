@@ -450,6 +450,9 @@ function editModalHTML(){
     if(!c){editTarget=null;return '';}
     title='체크리스트 항목 수정';
     body=`<input id="edCheckText" value="${esc(c.text)}" placeholder="체크리스트 항목" class="mt">
+      <label class="row" style="gap:7px;margin-top:10px;font-size:13.5px;cursor:pointer">
+        <input type="checkbox" id="edCheckTop" ${c.top?'checked':''} style="width:17px;height:17px;accent-color:#111"> ⭐ 최우선 항목으로 표시
+      </label>
       ${memoEditableHTML('edCheckMemo',c.memo||'','메모 (자세한 내용)')}`;
   }else if(t.type==='bucket'){
     const x=D.bucket.find(b=>b.id===t.id); if(!x){editTarget=null;return '';}
@@ -561,6 +564,7 @@ window.saveEdit=()=>{
     if(!c)return;
     const txt=document.getElementById('edCheckText').value.trim(); if(!txt)return;
     c.text=txt;
+    c.top=document.getElementById('edCheckTop').checked;
     c.memo=getMemoValue('edCheckMemo');
   }else if(t.type==='bucket'){
     const x=D.bucket.find(b=>b.id===t.id); if(!x)return;
@@ -931,9 +935,10 @@ function growthHTML(){
         </div>`}
         <div class="bar"><div style="width:${prog}%"></div></div>
         <ul class="plain mt">
-          ${checks.map(c=>`<li class="item ${c.done?'done':''}" style="padding:6px 2px">
+          ${checks.slice().sort((a,b)=>(b.top?1:0)-(a.top?1:0)).map(c=>`<li class="item ${c.done?'done':''}" style="padding:6px 2px;${c.top&&!c.done?'background:var(--yellow-soft);border-radius:8px':''}">
+            <button class="icon" onclick="toggleCheckTop('${g.id}','${c.id}')" title="최우선으로 표시" style="font-size:14px">${c.top?'⭐':'☆'}</button>
             <input type="checkbox" class="chk" ${c.done?'checked':''} onchange="tgCheck('${g.id}','${c.id}')">
-            <span class="txt" style="font-size:13.5px">${esc(c.text)}${c.memo?`<span onclick="event.stopPropagation();openMemoFor('check','${g.id}','${c.id}')" style="cursor:pointer;margin-left:4px" title="메모 보기">📝</span>`:''}</span>
+            <span class="txt" style="font-size:13.5px;${c.top?'font-weight:700':''}">${esc(c.text)}${c.memo?`<span onclick="event.stopPropagation();openMemoFor('check','${g.id}','${c.id}')" style="cursor:pointer;margin-left:4px" title="메모 보기">📝</span>`:''}</span>
             <button class="icon" onclick="openEditCheck('${g.id}','${c.id}')">✎</button>
             <button class="icon" onclick="delCheck('${g.id}','${c.id}')">✕</button></li>`).join('')}
         </ul>
@@ -969,6 +974,11 @@ window.tgCheck=(gid,cid)=>{
   const g=D.growth.find(x=>x.id===gid); if(!g)return;
   const c=(g.checks||[]).find(x=>x.id===cid); if(!c)return;
   c.done=!c.done; save();render();
+};
+window.toggleCheckTop=(gid,cid)=>{
+  const g=D.growth.find(x=>x.id===gid); if(!g)return;
+  const c=(g.checks||[]).find(x=>x.id===cid); if(!c)return;
+  c.top=!c.top; save();render();
 };
 window.delCheck=(gid,cid)=>{
   const g=D.growth.find(x=>x.id===gid); if(!g)return;
